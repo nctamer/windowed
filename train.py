@@ -15,11 +15,11 @@ import matplotlib.pyplot as plt
 from modules.dataset import Collator, Dataset, partition_dataset
 import pickle
 
-LEARNING_RATE = 2e-7
+LEARNING_RATE = 1e-6
 MAX_EPOCH = 200
-BATCH_SIZE = 256
-BATCH_TRACKS = 4
-NUM_WORKERS = 12
+BATCH_SIZE = 512
+BATCH_TRACKS = 2
+NUM_WORKERS = 16
 DEVICE = "cuda"
 
 if __name__ == "__main__":
@@ -30,19 +30,19 @@ if __name__ == "__main__":
 
     DATA_FOLDER = "./"
     #DATA_FOLDER = "../data/"
-    data_path = sorted([os.path.abspath(os.path.join(DATA_FOLDER, f)) for f in os.listdir(DATA_FOLDER)])[1]
+    data_path = sorted([os.path.abspath(os.path.join(DATA_FOLDER, f)) for f in os.listdir(DATA_FOLDER)])[0]
     print(data_path)
     dataset = Dataset(os.path.join(data_path, "audio_stems"), os.path.join(data_path, "annotation_stems"))
     print("debug - dataset import success")
 
-    train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.1, test_ratio=0.1)
+    train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
     del dataset
-    train_loader = data.DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS,
+    train_loader = data.DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
                                    shuffle=True, collate_fn=Collator(BATCH_TRACKS, shuffle=True))
-    dev_loader = data.DataLoader(dev_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS,
+    dev_loader = data.DataLoader(dev_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
                                  shuffle=False, collate_fn=Collator(BATCH_TRACKS, shuffle=False))
 
-    model = CREPE(pretrained=True).to(DEVICE)
+    model = CREPE(pretrained=False).to(DEVICE)
     device = model.linear.weight.device
     print(device)
     criterion = nn.BCELoss(reduction="mean")
@@ -69,6 +69,7 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+
             if not e % 2:
                 torch.cuda.empty_cache()
                 train_loss /= 2
