@@ -18,7 +18,7 @@ import pickle
 LEARNING_RATE = 1e-6
 MAX_EPOCH = 200
 BATCH_SIZE = 512
-BATCH_TRACKS = 2
+BATCH_TRACKS = 3
 NUM_WORKERS = 16
 DEVICE = "cuda"
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
     DATA_FOLDER = "./"
     #DATA_FOLDER = "../data/"
-    data_path = sorted([os.path.abspath(os.path.join(DATA_FOLDER, f)) for f in os.listdir(DATA_FOLDER)])[0]
+    data_path = sorted([os.path.abspath(os.path.join(DATA_FOLDER, f)) for f in os.listdir(DATA_FOLDER)])[1]
     print(data_path)
     dataset = Dataset(os.path.join(data_path, "audio_stems"), os.path.join(data_path, "annotation_stems"))
     print("debug - dataset import success")
