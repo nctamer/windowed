@@ -2,7 +2,7 @@
 #SBATCH --job-name=crepe_med
 #SBATCH -n 17
 #SBATCH --time=8:00:00
-#SBATCH --mem 64000
+#SBATCH --mem 54000
 #SBATCH --partition=medium
 #SBATCH --gres=gpu:1
 #SBATCH -p medium                     # Partition to submit to
