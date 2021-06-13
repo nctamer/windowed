@@ -24,13 +24,13 @@ DEVICE = "cuda"
 
 if __name__ == "__main__":
 
-    SAVE_FILE = "~/instrument_pitch_tracker/efficient/log_dummy.log"
+    SAVE_FILE = "~/instrument_pitch_tracker/windowed/log_dummy.log"
 
     print("debug - we have the libraries")
 
     # DATA_FOLDER = "./"
     DATA_FOLDER = "../data/"
-    data_path = sorted([os.path.abspath(os.path.join(DATA_FOLDER, f)) for f in os.listdir(DATA_FOLDER)])[0]
+    data_path = sorted([os.path.abspath(os.path.join(DATA_FOLDER, f)) for f in os.listdir(DATA_FOLDER)])[1]
     print(data_path)
     dataset = Dataset(os.path.join(data_path, "audio_stems"), os.path.join(data_path, "annotation_stems"))
     print("debug - dataset import success")
