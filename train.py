@@ -17,9 +17,9 @@ import pickle
 
 LEARNING_RATE = 2e-7
 MAX_EPOCH = 200
-BATCH_SIZE = 128
-BATCH_TRACKS = 8
-NUM_WORKERS = 16
+BATCH_SIZE = 256
+BATCH_TRACKS = 4
+NUM_WORKERS = 12
 DEVICE = "cuda"
 
 if __name__ == "__main__":
@@ -44,6 +44,7 @@ if __name__ == "__main__":
 
     model = CREPE(pretrained=True).to(DEVICE)
     device = model.linear.weight.device
+    print(device)
     criterion = nn.BCELoss(reduction="mean")
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999), eps=1e-8)
     print("debug - model import success")
@@ -56,6 +57,7 @@ if __name__ == "__main__":
         train_loss = 0
 
         for e, (s, l, _) in enumerate(train_loader):
+            print('debug- tracks loaded')
             model = model.train()
             for i, sequence in enumerate(s):
                 sequence = sequence.to(device)
