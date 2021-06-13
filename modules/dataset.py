@@ -100,7 +100,7 @@ class Collator(object):
         n_batches = int(np.floor(len(label)/self.batch_size))*self.batch_size
         segments = torch.tensor(
             segments[:n_batches].reshape((n_batches//self.batch_size, self.batch_size, segments.shape[-1])),
-            dtype=torch.long)
+            dtype=torch.float)
         label = torch.tensor(
             label[:n_batches].reshape((n_batches//self.batch_size, self.batch_size, label.shape[-1])),
             dtype=torch.float32)
