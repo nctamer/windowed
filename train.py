@@ -28,8 +28,8 @@ if __name__ == "__main__":
 
     print("debug - we have the libraries")
 
-    # DATA_FOLDER = "./"
-    DATA_FOLDER = "../data/"
+    DATA_FOLDER = "./"
+    #DATA_FOLDER = "../data/"
     data_path = sorted([os.path.abspath(os.path.join(DATA_FOLDER, f)) for f in os.listdir(DATA_FOLDER)])[1]
     print(data_path)
     dataset = Dataset(os.path.join(data_path, "audio_stems"), os.path.join(data_path, "annotation_stems"))
