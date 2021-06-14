@@ -31,11 +31,12 @@ if __name__ == "__main__":
     dataset = DictDataset("/homedtic/ntamer/instrument_pitch_tracker/data/MDB-stem-synth/prep")
     print("debug - dataset import success")
 
-    #train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
-    #del dataset
-    train_loader = data.DataLoader(dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
+    train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
+    print(train_set.__len__(), dev_set.__len__(), test_set.__len__())
+    del dataset
+    train_loader = data.DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
                                    shuffle=True, collate_fn=Collator(BATCH_TRACKS, shuffle=True))
-    dev_loader = data.DataLoader(dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
+    dev_loader = data.DataLoader(dev_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
                                  shuffle=False, collate_fn=Collator(BATCH_TRACKS, shuffle=False))
 
     model = CREPE(pretrained=False).to(DEVICE)
@@ -88,7 +89,7 @@ if __name__ == "__main__":
                             eval_data["ref"].append(ref_hz)
                             eval_data["est"].append(est_hz)
                 torch.cuda.empty_cache()
-                dev_loss /= len(dataset[part_at:])
+                dev_loss /= len(dev_set)
                 ref_hz = np.concatenate(eval_data["ref"])
                 est_hz = np.concatenate(eval_data["est"])
                 print('epoch: {}  '.format(epoch) + 'trainL: {:.2f}  devL: {:.2f}  '.format(train_loss, dev_loss) +

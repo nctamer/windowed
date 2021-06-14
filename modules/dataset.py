@@ -132,7 +132,13 @@ class Collator(object):
 
 def get_part(main_dataset, indices):
     part = copy.copy(main_dataset)
-    part.annotations = [main_dataset.annotations[ind] for ind in indices]
+    if hasattr(main_dataset, 'audio_list'):
+        audio_names = [main_dataset.audio_list[idx] for idx in indices]
+        part.files = []
+        for name in audio_names:
+            part.files.append(main_dataset.audio_map[name])
+    else:
+        part.annotations = [main_dataset.annotations[ind] for ind in indices]
     return part
 
 
@@ -141,10 +147,13 @@ def partition_dataset(main_dataset, dev_ratio=0.2, test_ratio=0.2):
     Partitioning based on tracks
     A better version should definitely consider track durations
     """
-    idx = set(range(main_dataset.annotations.__len__()))
-    dev_count = int(len(main_dataset) * dev_ratio)
-    test_count = int(len(main_dataset) * test_ratio)
-    train_count = len(main_dataset) - dev_count - test_count
+    if hasattr(main_dataset, 'audio_list'):
+        idx = main_dataset.audio_list.__len__()
+    else:
+        idx = set(range(main_dataset.__len__()))
+    dev_count = int(len(idx) * dev_ratio)
+    test_count = int(len(idx) * test_ratio)
+    train_count = len(idx) - dev_count - test_count
 
     train_idx = sorted(random.sample(idx, train_count))
     dev_idx = sorted(random.sample(list(set(idx).difference(set(train_idx))), dev_count))
@@ -160,6 +169,7 @@ if __name__ == '__main__':
     files_per_batch = 4  # the number of batches (separate files) we read in the loader
     batch_sample_size = 128  # the real batch size the GPU sees
     dataset = DictDataset(os.path.join(data_path, "prep"))
+    train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
     collate = Collator(batch_size=batch_sample_size, shuffle=True)
     loader = torch.utils.data.DataLoader(dataset, batch_size=files_per_batch, shuffle=True, collate_fn=collate)
     for (s, l, f) in loader:
