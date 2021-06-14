@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torchaudio
+#import torchaudio
 import sys
 from modules.utils import *
 import numpy as np
@@ -86,6 +86,7 @@ class CREPE(nn.Module):
         x = torch.sigmoid(x)
         return x
 
+    '''
     def get_activation(self, audio, sr, center=True, step_size=10, batch_size=128):
         """
         audio : (N,) or (C, N)
@@ -112,6 +113,7 @@ class CREPE(nn.Module):
             activation_stack.append(act.cpu())
         activation = torch.cat(activation_stack, dim=0)
         return activation
+    '''
 
     def predict(self, audio, sr, viterbi=False, center=True, step_size=10, batch_size=128):
         activation = self.get_activation(audio, sr, batch_size=batch_size, step_size=step_size)
@@ -120,6 +122,7 @@ class CREPE(nn.Module):
         time = torch.arange(confidence.shape[0]) * step_size / 1000.0
         return time, frequency, confidence, activation
 
+    '''
     def process_file(self, file, output=None, viterbi=False,
                      center=True, step_size=10, save_plot=False, batch_size=128):
         try:
@@ -155,7 +158,7 @@ class CREPE(nn.Module):
             image = inferno(salience.transpose())
 
             imwrite(plot_file, (255 * image).astype(np.uint8))
-
+    '''
 
 if __name__ == "__main__":
 
