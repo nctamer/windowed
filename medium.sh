@@ -17,5 +17,5 @@ module load librosa
 module load scikit-learn
 
 echo "modules loaded"
-python ~/instrument_pitch_tracker/windowed/train.py > ~/instrument_pitch_tracker/windowed/out.txt
+python ~/instrument_pitch_tracker/windowed/train.py
 
