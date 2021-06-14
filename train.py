@@ -28,11 +28,7 @@ if __name__ == "__main__":
 
     print("debug - we have the libraries")
 
-    DATA_FOLDER = "./"
-    #DATA_FOLDER = "../data/"
-    data_path = sorted([os.path.abspath(os.path.join(DATA_FOLDER, f)) for f in os.listdir(DATA_FOLDER)])[1]
-    print(data_path)
-    dataset = DictDataset(os.path.join(data_path, "prep"))
+    dataset = DictDataset("./prep")
     print("debug - dataset import success")
 
     #train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)

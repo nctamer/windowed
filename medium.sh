@@ -17,7 +17,7 @@ workdir="${TMPDIR}"
 
 # get submit directory
 # (every file/folder below this directory is copied to the compute node)
-submitdir="/homedtic/ntamer/instrument_pitch_tracker/data/"
+submitdir="/homedtic/ntamer/instrument_pitch_tracker/data/MDB-stem-synth/prep"
 
 # 1. Transfer to node [DO NOT CHANGE]
 # ===================================
