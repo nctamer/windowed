@@ -17,10 +17,10 @@ import pickle
 
 LEARNING_RATE = 1e-6
 MAX_EPOCH = 200
-BATCH_SIZE = 1024
-BATCH_TRACKS = 16
-NUM_WORKERS = 12
-DEVICE = "cuda"
+BATCH_SIZE = 128
+BATCH_TRACKS = 4
+NUM_WORKERS = 4
+DEVICE = "cpu"
 
 if __name__ == "__main__":
 
