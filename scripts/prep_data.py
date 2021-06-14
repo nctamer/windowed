@@ -111,7 +111,7 @@ class PrepareDataset(data.Dataset):
 
 if __name__ == '__main__':
 
-    data_path = "/home/nazif/PycharmProjects/data/MDB-stem-synth"
+    data_path = "/homedtic/ntamer/instrument_pitch_tracker/data/MDB-stem-synth"
 
     dataset = PrepareDataset(audio_folder=os.path.join(data_path, "audio_stems"),
                              annotation_folder=os.path.join(data_path, "annotation_stems"),
