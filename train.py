@@ -58,7 +58,7 @@ if __name__ == "__main__":
         train_loss = 0
 
         for e, (s, l, _) in enumerate(train_loader):
-            print('debug- tracks loaded')
+            print('debug - tracks loaded')
             model = model.train()
             for i, sequence in enumerate(s):
                 sequence = sequence.to(device)
