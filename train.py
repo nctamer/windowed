@@ -33,10 +33,9 @@ if __name__ == "__main__":
 
     #train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
     #del dataset
-    part_at = int(len(dataset)*0.8)
-    train_loader = data.DataLoader(dataset[:part_at], batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
+    train_loader = data.DataLoader(dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
                                    shuffle=True, collate_fn=Collator(BATCH_TRACKS, shuffle=True))
-    dev_loader = data.DataLoader(dataset[part_at:], batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
+    dev_loader = data.DataLoader(dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
                                  shuffle=False, collate_fn=Collator(BATCH_TRACKS, shuffle=False))
 
     model = CREPE(pretrained=False).to(DEVICE)
@@ -66,6 +65,7 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+                print('success')
 
             if not e % 2:
                 torch.cuda.empty_cache()
