@@ -136,7 +136,7 @@ def get_part(main_dataset, indices):
         audio_names = [main_dataset.audio_list[idx] for idx in indices]
         part.files = []
         for name in audio_names:
-            part.files.append(main_dataset.audio_map[name])
+            part.files.extend(main_dataset.audio_map[name])
     else:
         part.annotations = [main_dataset.annotations[ind] for ind in indices]
     return part
