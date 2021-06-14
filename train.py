@@ -1,26 +1,18 @@
-import pandas as pd
 import numpy as np
-import scipy.signal
 from modules.crepe import CREPE, get_frame
 from modules.utils import to_freq, eval_from_hz
-from scipy import signal
-import os
-import sys
 from torch.utils import data
 import torch.nn as nn
-from pathlib import Path
 import torch
-import torchaudio
-import matplotlib.pyplot as plt
 from modules.dataset import Collator, DictDataset, partition_dataset
 import pickle
 
 LEARNING_RATE = 1e-6
 MAX_EPOCH = 200
-BATCH_SIZE = 128
-BATCH_TRACKS = 4
-NUM_WORKERS = 4
-DEVICE = "cpu"
+BATCH_SIZE = 512
+BATCH_TRACKS = 16
+NUM_WORKERS = 8
+DEVICE = "cuda"
 
 if __name__ == "__main__":
 
@@ -34,9 +26,9 @@ if __name__ == "__main__":
     train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
     print(train_set.__len__(), dev_set.__len__(), test_set.__len__())
     del dataset
-    train_loader = data.DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
+    train_loader = data.DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=2,
                                    shuffle=True, collate_fn=Collator(BATCH_TRACKS, shuffle=True))
-    dev_loader = data.DataLoader(dev_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
+    dev_loader = data.DataLoader(dev_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=2,
                                  shuffle=False, collate_fn=Collator(BATCH_TRACKS, shuffle=False))
 
     model = CREPE(pretrained=False).to(DEVICE)
