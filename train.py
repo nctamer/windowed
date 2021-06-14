@@ -12,13 +12,13 @@ from pathlib import Path
 import torch
 import torchaudio
 import matplotlib.pyplot as plt
-from modules.dataset import Collator, Dataset, partition_dataset
+from modules.dataset import Collator, DictDataset, partition_dataset
 import pickle
 
 LEARNING_RATE = 1e-6
 MAX_EPOCH = 200
-BATCH_SIZE = 512
-BATCH_TRACKS = 2
+BATCH_SIZE = 1024
+BATCH_TRACKS = 16
 NUM_WORKERS = 16
 DEVICE = "cuda"
 
@@ -32,14 +32,15 @@ if __name__ == "__main__":
     #DATA_FOLDER = "../data/"
     data_path = sorted([os.path.abspath(os.path.join(DATA_FOLDER, f)) for f in os.listdir(DATA_FOLDER)])[1]
     print(data_path)
-    dataset = Dataset(os.path.join(data_path, "audio_stems"), os.path.join(data_path, "annotation_stems"))
+    dataset = DictDataset(os.path.join(data_path, "prep"))
     print("debug - dataset import success")
 
-    train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
-    del dataset
-    train_loader = data.DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
+    #train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
+    #del dataset
+    part_at = int(len(dataset)*0.8)
+    train_loader = data.DataLoader(dataset[:part_at], batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
                                    shuffle=True, collate_fn=Collator(BATCH_TRACKS, shuffle=True))
-    dev_loader = data.DataLoader(dev_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
+    dev_loader = data.DataLoader(dataset[part_at:], batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=8,
                                  shuffle=False, collate_fn=Collator(BATCH_TRACKS, shuffle=False))
 
     model = CREPE(pretrained=False).to(DEVICE)

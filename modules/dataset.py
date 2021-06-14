@@ -11,6 +11,7 @@ from mir_eval import melody
 from scipy.stats import norm
 import random
 import copy
+from scripts.prep_data import load_dict
 
 
 AUDIO_SR = 16000
@@ -52,7 +53,28 @@ class Label:
         return self.c2label(pitch_c)
 
 
-class Dataset(data.Dataset):
+class DictDataset(data.Dataset):
+    def __init__(self, prep_folder):
+        super().__init__()
+        self.files, self.audio_names, ids = zip(*[[os.path.join(prep_folder, _)] + _.rsplit("_", 1)
+                                                for _ in sorted(os.listdir(prep_folder))])
+        self.audio_map = {_: [] for _ in set(self.audio_names)}
+        for i_file, file in enumerate(self.files):
+            audio_name = self.audio_names[i_file]
+            self.audio_map[audio_name].append(file)
+        self.audio_list = sorted(self.audio_map.keys())
+        self.label = Label(**LABEL)
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, index):
+        file = load_dict(self.files[index])
+
+        return self.audio_names[index], file['segments'], file['labels'], file['f0s']
+
+
+class AudioDataset(data.Dataset):
     def __init__(self, audio_folder, annotation_folder, audio_file_extension="wav"):
         super().__init__()
         self.annotations = [(os.path.join(audio_folder, _[:-4] + "." + audio_file_extension),
@@ -138,7 +160,7 @@ if __name__ == '__main__':
 
     files_per_batch = 4  # the number of batches (separate files) we read in the loader
     batch_sample_size = 128  # the real batch size the GPU sees
-    dataset = Dataset(os.path.join(data_path, "audio_stems"), os.path.join(data_path, "annotation_stems"))
+    dataset = DictDataset(os.path.join(data_path, "prep"))
     collate = Collator(batch_size=batch_sample_size, shuffle=True)
     loader = torch.utils.data.DataLoader(dataset, batch_size=files_per_batch, shuffle=True, collate_fn=collate)
     for (s, l, f) in loader:
