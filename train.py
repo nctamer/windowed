@@ -71,8 +71,8 @@ if __name__ == "__main__":
                         loss = criterion(act, label)
                         dev_loss += loss.item()
 
-                        est_hz = to_freq(act, viterbi=False).numpy()
-                        ref_hz = f.view(-1).numpy()
+                        est_hz = to_freq(act, viterbi=False).view(-1).numpy()
+                        ref_hz = f[i].view(-1).numpy()
                         # confidence = act.max(dim=1)[0][mask].numpy()
                         eval_data["ref"].append(ref_hz)
                         eval_data["est"].append(est_hz)
