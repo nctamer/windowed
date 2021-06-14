@@ -1,16 +1,11 @@
 
 import csv
-import io
 import numpy as np
 import librosa
-import librosa.display
 import os
 from torch.utils import data
-import torch
 from mir_eval import melody
 from scipy.stats import norm
-import random
-import copy
 from six.moves import cPickle as pickle
 
 
