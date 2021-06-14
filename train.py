@@ -9,34 +9,35 @@ import pickle
 
 LEARNING_RATE = 1e-6
 MAX_EPOCH = 200
-BATCH_SIZE = 1024
-BATCH_TRACKS = 32
+BATCH_SIZE = 128
+BATCH_TRACKS = 512
 NUM_WORKERS = 5
 DEVICE = "cuda"
 
 if __name__ == "__main__":
 
     SAVE_FILE = "~/instrument_pitch_tracker/windowed/log_dummy.log"
+    OUT_FILE = "~/instrument_pitch_tracker/windowed/out.txt"
 
-    print("debug - we have the libraries")
+    print("debug - we have the libraries", file=open(OUT_FILE, "w"))
 
     dataset = DictDataset("/homedtic/ntamer/instrument_pitch_tracker/data/MDB-stem-synth/prep")
-    print("debug - dataset import success")
+    print("debug - dataset import success", file=open(OUT_FILE, "a"))
 
     train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
-    print(train_set.__len__(), dev_set.__len__(), test_set.__len__())
+    print(train_set.__len__(), dev_set.__len__(), test_set.__len__(), file=open(OUT_FILE, "a"))
     del dataset
-    train_loader = data.DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=2,
-                                   shuffle=True, collate_fn=Collator(BATCH_TRACKS, shuffle=True))
-    dev_loader = data.DataLoader(dev_set, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS, prefetch_factor=2,
-                                 shuffle=False, collate_fn=Collator(BATCH_TRACKS, shuffle=False))
+    train_loader = data.DataLoader(train_set, batch_size=BATCH_TRACKS, num_workers=NUM_WORKERS, prefetch_factor=2,
+                                   shuffle=True, collate_fn=Collator(BATCH_SIZE, shuffle=True))
+    dev_loader = data.DataLoader(dev_set, batch_size=BATCH_TRACKS, num_workers=NUM_WORKERS, prefetch_factor=2,
+                                 shuffle=False, collate_fn=Collator(BATCH_SIZE, shuffle=False))
 
     model = CREPE(pretrained=False).to(DEVICE)
     device = model.linear.weight.device
-    print(device)
+    print(device, file=open(OUT_FILE, "a"))
     criterion = nn.BCELoss(reduction="mean")
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999), eps=1e-8)
-    print("debug - model import success")
+    print("debug - model import success", file=open(OUT_FILE, "a"))
 
     log_file = {'epoch': {'train': [], 'dev': []}, 'batch': {'train': [], 'dev': []}}
     for epoch in range(MAX_EPOCH):
@@ -46,7 +47,7 @@ if __name__ == "__main__":
         train_loss = 0
 
         for e, (s, l, _) in enumerate(train_loader):
-            print('debug - tracks loaded')
+            print('debug - tracks loaded', file=open(OUT_FILE, "a"))
             model = model.train()
             for i, sequence in enumerate(s):
                 sequence = sequence.to(device)
@@ -58,7 +59,7 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                print('success')
+                print(e, i, file=open(OUT_FILE, "a"))
 
             if not e % 2:
                 torch.cuda.empty_cache()
@@ -85,7 +86,8 @@ if __name__ == "__main__":
                 ref_hz = np.concatenate(eval_data["ref"])
                 est_hz = np.concatenate(eval_data["est"])
                 print('epoch: {}  '.format(epoch) + 'trainL: {:.2f}  devL: {:.2f}  '.format(train_loss, dev_loss) +
-                      '    '.join('{}: {:.2f}'.format(k, v) for k, v in eval_from_hz(ref_hz, est_hz).items()))
+                      '    '.join('{}: {:.2f}'.format(k, v) for k, v in eval_from_hz(ref_hz, est_hz).items()),
+                      file=open(OUT_FILE, "a"))
 
                 log_file['batch']['train'].append(train_loss)
                 log_file['batch']['dev'].append(dev_loss)
