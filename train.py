@@ -28,7 +28,7 @@ if __name__ == "__main__":
 
     print("debug - we have the libraries")
 
-    dataset = DictDataset("./prep")
+    dataset = DictDataset("/homedtic/ntamer/instrument_pitch_tracker/data/MDB-stem-synth/prep")
     print("debug - dataset import success")
 
     #train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
