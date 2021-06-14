@@ -19,25 +19,22 @@ if __name__ == "__main__":
     SAVE_FILE = "/homedtic/ntamer/instrument_pitch_tracker/windowed/log_dummy.log"
     OUT_FILE = "/homedtic/ntamer/instrument_pitch_tracker/windowed/out.txt"
 
-    print("debug - we have the libraries", file=open(OUT_FILE, "w"))
+    print("LR:", LEARNING_RATE, "batch size:", BATCH_SIZE, "tracks", BATCH_TRACKS, file=open(OUT_FILE, "w"))
 
     dataset = DictDataset("/homedtic/ntamer/instrument_pitch_tracker/data/MDB-stem-synth/prep")
-    print("debug - dataset import success", file=open(OUT_FILE, "a"))
-
-    train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
-    print(train_set.__len__(), dev_set.__len__(), test_set.__len__(), file=open(OUT_FILE, "a"))
+    train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.05, test_ratio=0.05)
+    print("splits:", train_set.__len__(), dev_set.__len__(), test_set.__len__(), file=open(OUT_FILE, "a"))
     del dataset
     train_loader = data.DataLoader(train_set, batch_size=BATCH_TRACKS, num_workers=NUM_WORKERS, prefetch_factor=2,
                                    shuffle=True, collate_fn=Collator(BATCH_SIZE, shuffle=True))
-    dev_loader = data.DataLoader(dev_set, batch_size=BATCH_TRACKS, num_workers=NUM_WORKERS, prefetch_factor=2,
-                                 shuffle=False, collate_fn=Collator(BATCH_SIZE, shuffle=False))
+    dev_loader = data.DataLoader(dev_set, batch_size=BATCH_TRACKS//4, num_workers=NUM_WORKERS, prefetch_factor=2,
+                                 shuffle=False, collate_fn=Collator(BATCH_SIZE*4, shuffle=False))
 
     model = CREPE(pretrained=False).to(DEVICE)
     device = model.linear.weight.device
-    print(device, file=open(OUT_FILE, "a"))
+    print("device:", device, file=open(OUT_FILE, "a"))
     criterion = nn.BCELoss(reduction="mean")
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999), eps=1e-8)
-    print("debug - model import success", file=open(OUT_FILE, "a"))
 
     log_file = {'epoch': {'train': [], 'dev': []}, 'batch': {'train': [], 'dev': []}}
     for epoch in range(MAX_EPOCH):
@@ -47,7 +44,8 @@ if __name__ == "__main__":
         train_loss = 0
 
         for e, (s, l, _) in enumerate(train_loader):
-            print('debug - tracks loaded', file=open(OUT_FILE, "a"))
+
+            # train for (BATCH_TRACKS * 512 / BATCH_SIZE) epochs -> 2048 in the current situation
             model = model.train()
             for i, sequence in enumerate(s):
                 sequence = sequence.to(device)
@@ -59,44 +57,39 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                print(e, i, file=open(OUT_FILE, "a"))
 
-            if not e % 2:
-                torch.cuda.empty_cache()
-                train_loss /= 2
-                model = model.eval()
-                dev_loss = 0
-                eval_data = {"ref": [], "est": []}
-                with torch.set_grad_enabled(False):
-                    for (s, l, f) in dev_loader:
-                        for i, sequence in enumerate(s):
-                            sequence = sequence.to(device)
-                            label = l[i].to(device)
-                            act = model.forward(sequence)
-                            loss = criterion(act, label)
-                            dev_loss += loss.item()
+            torch.cuda.empty_cache()
+            model = model.eval()
+            dev_loss = 0
+            eval_data = {"ref": [], "est": []}
+            with torch.set_grad_enabled(False):
+                for (s, l, f) in dev_loader:
+                    for i, sequence in enumerate(s):
+                        sequence = sequence.to(device)
+                        label = l[i].to(device)
+                        act = model.forward(sequence)
+                        loss = criterion(act, label)
+                        dev_loss += loss.item()
 
-                            est_hz = to_freq(act, viterbi=False).numpy()
-                            ref_hz = f.view(-1).numpy()
-                            # confidence = act.max(dim=1)[0][mask].numpy()
-                            eval_data["ref"].append(ref_hz)
-                            eval_data["est"].append(est_hz)
-                torch.cuda.empty_cache()
-                dev_loss /= len(dev_set)
-                ref_hz = np.concatenate(eval_data["ref"])
-                est_hz = np.concatenate(eval_data["est"])
-                print('epoch: {}  '.format(epoch) + 'trainL: {:.2f}  devL: {:.2f}  '.format(train_loss, dev_loss) +
-                      '    '.join('{}: {:.2f}'.format(k, v) for k, v in eval_from_hz(ref_hz, est_hz).items()),
-                      file=open(OUT_FILE, "a"))
+                        est_hz = to_freq(act, viterbi=False).numpy()
+                        ref_hz = f.view(-1).numpy()
+                        # confidence = act.max(dim=1)[0][mask].numpy()
+                        eval_data["ref"].append(ref_hz)
+                        eval_data["est"].append(est_hz)
+            torch.cuda.empty_cache()
+            ref_hz = np.concatenate(eval_data["ref"])
+            est_hz = np.concatenate(eval_data["est"])
+            print('epoch: {}  '.format(e) + 'trainL: {:.2f}  devL: {:.2f}  '.format(train_loss, dev_loss) +
+                  '    '.join('{}: {:.2f}'.format(k, v) for k, v in eval_from_hz(ref_hz, est_hz).items()),
+                  file=open(OUT_FILE, "a"))
 
-                log_file['batch']['train'].append(train_loss)
-                log_file['batch']['dev'].append(dev_loss)
-                epoch_train_loss += train_loss
-                epoch_dev_loss += dev_loss
-                train_loss = 0
+            log_file['batch']['train'].append(train_loss)
+            log_file['batch']['dev'].append(dev_loss)
+            epoch_train_loss += train_loss
+            epoch_dev_loss += dev_loss
+            train_loss = 0
+            with open(SAVE_FILE, 'wb') as fp:
+                pickle.dump(log_file, fp, protocol=pickle.HIGHEST_PROTOCOL)
+
         log_file['epoch']['train'].append(epoch_train_loss)
         log_file['epoch']['dev'].append(epoch_dev_loss)
-        with open(SAVE_FILE, 'wb') as fp:
-            pickle.dump(log_file, fp, protocol=pickle.HIGHEST_PROTOCOL)
-
-

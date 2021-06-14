@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=crepe_med
-#SBATCH -n 5
+#SBATCH -n 6
 #SBATCH --time=8:00:00
 #SBATCH --mem 50000
 #SBATCH --partition=medium
