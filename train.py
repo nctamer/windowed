@@ -11,7 +11,7 @@ LEARNING_RATE = 1e-6
 MAX_EPOCH = 200
 BATCH_SIZE = 1024
 BATCH_TRACKS = 32
-NUM_WORKERS = 8
+NUM_WORKERS = 5
 DEVICE = "cuda"
 
 if __name__ == "__main__":

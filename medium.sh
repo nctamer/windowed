@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=crepe_med
-#SBATCH -n 16
+#SBATCH -n 5
 #SBATCH --time=8:00:00
-#SBATCH --mem 72000
+#SBATCH --mem 50000
 #SBATCH --partition=medium
 #SBATCH --gres=gpu:1
 #SBATCH -p medium                     # Partition to submit to
