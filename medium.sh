@@ -42,7 +42,7 @@ echo "now start"
 
 module load torchaudio
 module load PyTorch
-module load CUDA
+# module load CUDA
 module load pandas
 module load librosa
 module load scikit-learn
