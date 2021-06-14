@@ -16,8 +16,8 @@ DEVICE = "cuda"
 
 if __name__ == "__main__":
 
-    SAVE_FILE = "~/instrument_pitch_tracker/windowed/log_dummy.log"
-    OUT_FILE = "~/instrument_pitch_tracker/windowed/out.txt"
+    SAVE_FILE = "/homedtic/ntamer/instrument_pitch_tracker/windowed/log_dummy.log"
+    OUT_FILE = "/homedtic/ntamer/instrument_pitch_tracker/windowed/out.txt"
 
     print("debug - we have the libraries", file=open(OUT_FILE, "w"))
 
