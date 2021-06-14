@@ -92,7 +92,7 @@ if __name__ == "__main__":
                             eval_data["ref"].append(ref_hz)
                             eval_data["est"].append(est_hz)
                 torch.cuda.empty_cache()
-                dev_loss /= dev_set.__len__()
+                dev_loss /= len(dataset[part_at:])
                 ref_hz = np.concatenate(eval_data["ref"])
                 est_hz = np.concatenate(eval_data["est"])
                 print('epoch: {}  '.format(epoch) + 'trainL: {:.2f}  devL: {:.2f}  '.format(train_loss, dev_loss) +
