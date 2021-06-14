@@ -148,7 +148,7 @@ def partition_dataset(main_dataset, dev_ratio=0.2, test_ratio=0.2):
     A better version should definitely consider track durations
     """
     if hasattr(main_dataset, 'audio_list'):
-        idx = main_dataset.audio_list.__len__()
+        idx = set(range(main_dataset.audio_list.__len__()))
     else:
         idx = set(range(main_dataset.__len__()))
     dev_count = int(len(idx) * dev_ratio)
