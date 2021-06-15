@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 import json
 
 args = {
-    "learning_rate": 5e-6,
+    "learning_rate": 4e-4,
     "max_epoch": 200,
     "batch_size": 128,
     "batch_tracks": 512,
@@ -26,7 +26,7 @@ parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
 if __name__ == "__main__":
     models_dir = os.path.join(parent_dir, "models")
     """ dataset & model """
-    save_dir = models_dir + model_id + "_" + str(datetime.now().strftime("%b%d_%H")) + "/"
+    save_dir = os.path.join(models_dir, model_id + "_" + str(datetime.now().strftime("%b%d_%H")))
     os.makedirs(save_dir, exist_ok=True)
     out_file = os.path.join(save_dir, "out.txt")
     writer = SummaryWriter(log_dir=save_dir, filename_suffix=".board")
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     model = CREPE(pretrained=False).to(args["device"])
     device = model.linear.weight.device
     print("device:", device, file=open(out_file, "a"))
-    criterion = nn.BCELoss(reduction="mean")
+    criterion = nn.BCELoss(reduction="sum")
     optimizer = torch.optim.Adam(model.parameters(), lr=args["learning_rate"], betas=(0.9, 0.999), eps=1e-8)
 
     global_step = 0
