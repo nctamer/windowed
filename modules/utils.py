@@ -23,6 +23,7 @@ def eval_from_hz(ref_hz, est_hz):
             "rpa50": melody.raw_pitch_accuracy(ref_voicing, ref_cent, est_voicing, est_cent, cent_tolerance=50),
             "rpa25": melody.raw_pitch_accuracy(ref_voicing, ref_cent, est_voicing, est_cent, cent_tolerance=25),
             "rpa10": melody.raw_pitch_accuracy(ref_voicing, ref_cent, est_voicing, est_cent, cent_tolerance=10),
+            "rpa5": melody.raw_pitch_accuracy(ref_voicing, ref_cent, est_voicing, est_cent, cent_tolerance=5),
             "std50": eval_pitch_std(ref_voicing, ref_cent, est_voicing, est_cent, cent_tolerance=50)}
 
 

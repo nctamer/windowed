@@ -33,7 +33,7 @@ if __name__ == "__main__":
     with open(os.path.join(save_dir, 'args.txt'), 'w') as json_file:
         json.dump(args, json_file)
     writer = print_model_info(model_id, args, writer)
-
+    print("args:\n",   '    '.join('{}: {}'.format(k, v) for k, v in args.items()), file=open(out_file, "w"))
     dataset = DictDataset(os.path.join(parent_dir, "data/MDB-stem-synth/prep"))
     train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.05, test_ratio=0.05)
     print("splits:", train_set.__len__(), dev_set.__len__(), test_set.__len__(), file=open(out_file, "a"))
@@ -74,13 +74,14 @@ if __name__ == "__main__":
             # evaluate
             dev_loss, performance_dict = evaluate(dev_loader, model.eval(), criterion)
             print('step: {}  '.format(global_step) + 'trainL: {:.2f}  devL: {:.2f}  '.format(train_loss, dev_loss) +
-                  '    '.join('{}: {:.2f}'.format(k, v) for k, v in performance_dict.items()),
+                  '    '.join('{}: {:.3f}'.format(k, v) for k, v in performance_dict.items()),
                   file=open(out_file, "a"))
 
             writer.add_scalars('Accuracy', {'RCA50': performance_dict["rca50"],
                                             'RPA50': performance_dict["rpa50"],
                                             'RPA25': performance_dict["rpa25"],
-                                            'RPA10': performance_dict["rpa10"]}, global_step=global_step)
+                                            'RPA10': performance_dict["rpa10"],
+                                            'RPA5': performance_dict["rpa5"]}, global_step=global_step)
             writer.add_scalars('Loss',  {'Train': train_loss,
                                          'Dev': dev_loss}, global_step=global_step)
             writer.flush()
@@ -94,4 +95,5 @@ if __name__ == "__main__":
                 print("\nFinished!!!\nBest Step: {}".format(global_step), file=open(out_file, "a"))
                 raise SystemExit(0)  # stop if dev loss is not reduced for over many epochs
             global_step += 1
+        print("\n Epoch ", epoch, file=open(out_file, "a"))
 
