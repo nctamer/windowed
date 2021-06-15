@@ -77,11 +77,12 @@ if __name__ == "__main__":
                   '    '.join('{}: {:.3f}'.format(k, v) for k, v in performance_dict.items()),
                   file=open(out_file, "a"))
 
-            writer.add_scalars('Accuracy', {'RCA50': performance_dict["rca50"],
-                                            'RPA50': performance_dict["rpa50"],
-                                            'RPA25': performance_dict["rpa25"],
-                                            'RPA10': performance_dict["rpa10"],
-                                            'RPA5': performance_dict["rpa5"]}, global_step=global_step)
+            writer.add_scalars('Accuracy', {'RCA50': float(performance_dict["rca50"]),
+                                            'RPA50': float(performance_dict["rpa50"]),
+                                            'RPA25': float(performance_dict["rpa25"]),
+                                            'RPA10': float(performance_dict["rpa10"]),
+                                            'RPA5': float(performance_dict["rpa5"])}, global_step=global_step)
+            writer.add_scalar('Cents/Std50', float(performance_dict["std50"]), global_step=global_step)
             writer.add_scalars('Loss',  {'Train': train_loss,
                                          'Dev': dev_loss}, global_step=global_step)
             writer.flush()
