@@ -119,3 +119,44 @@ def to_freq(activation, viterbi=False):
     frequency = 10 * 2 ** (cents / 1200)
     frequency[torch.isnan(frequency)] = 0
     return frequency
+
+
+def print_model_info(model_id, args, writer):
+    model_h_params = ""
+    for x in args:
+        params = ""
+        try:
+            for y in args[x]:
+                params += y + ": " + str(args[x][y]) + "\n"
+        except TypeError:
+            params += "%s" % args[x] + "\n"
+        model_h_params += "\n      _" + x + "_\n" + params
+    print("model ID:", model_id, "\n", model_h_params)
+    writer.add_text(model_id, model_h_params, global_step=0)
+    writer.flush()
+    return writer
+
+
+def evaluate(dev_loader, model, criterion):
+    device = model.linear.weight.device
+    dev_loss = 0
+    eval_data = {"ref": [], "est": []}
+    with torch.set_grad_enabled(False):
+        for (s, l, f) in dev_loader:
+            for i, sequence in enumerate(s):
+                sequence = sequence.to(device)
+                label = l[i].to(device)
+                act = model.forward(sequence)
+                loss = criterion(act, label)
+                dev_loss += loss.item()
+
+                est_hz = to_freq(act, viterbi=False).view(-1).numpy()
+                ref_hz = f[i].view(-1).numpy()
+                # confidence = act.max(dim=1)[0][mask].numpy()
+                eval_data["ref"].append(ref_hz)
+                eval_data["est"].append(est_hz)
+    torch.cuda.empty_cache()
+    ref_hz = np.concatenate(eval_data["ref"])
+    est_hz = np.concatenate(eval_data["est"])
+
+    return dev_loss, eval_from_hz(ref_hz, est_hz)

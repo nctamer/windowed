@@ -1,51 +1,61 @@
 import numpy as np
 from modules.crepe import CREPE, get_frame
-from modules.utils import to_freq, eval_from_hz
+from modules.utils import to_freq, eval_from_hz, print_model_info, evaluate
 from torch.utils import data
 import torch.nn as nn
 import torch
 from modules.dataset import Collator, DictDataset, partition_dataset
-import pickle
+import os
+from datetime import datetime
+from torch.utils.tensorboard import SummaryWriter
+import json
 
-LEARNING_RATE = 1e-6
-MAX_EPOCH = 200
-BATCH_SIZE = 128
-BATCH_TRACKS = 512
-NUM_WORKERS = 5
-DEVICE = "cuda"
+args = {
+    "learning_rate": 5e-6,
+    "max_epoch": 200,
+    "batch_size": 128,
+    "batch_tracks": 512,
+    "num_workers": 5,
+    "device": "cuda",
+}
+model_id = "bare"
+
+parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
+
 
 if __name__ == "__main__":
+    models_dir = os.path.join(parent_dir, "models")
+    """ dataset & model """
+    save_dir = models_dir + model_id + "_" + str(datetime.now().strftime("%b%d_%H")) + "/"
+    os.makedirs(save_dir, exist_ok=True)
+    out_file = os.path.join(save_dir, "out.txt")
+    writer = SummaryWriter(log_dir=save_dir, filename_suffix=".board")
+    with open(os.path.join(save_dir, 'args.txt'), 'w') as json_file:
+        json.dump(args, json_file)
+    writer = print_model_info(model_id, args, writer)
 
-    SAVE_FILE = "/homedtic/ntamer/instrument_pitch_tracker/windowed/log_dummy.log"
-    OUT_FILE = "/homedtic/ntamer/instrument_pitch_tracker/windowed/out.txt"
-
-    print("LR:", LEARNING_RATE, "batch size:", BATCH_SIZE, "tracks", BATCH_TRACKS, file=open(OUT_FILE, "w"))
-
-    dataset = DictDataset("/homedtic/ntamer/instrument_pitch_tracker/data/MDB-stem-synth/prep")
+    dataset = DictDataset(os.path.join(parent_dir, "data/MDB-stem-synth/prep"))
     train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.05, test_ratio=0.05)
-    print("splits:", train_set.__len__(), dev_set.__len__(), test_set.__len__(), file=open(OUT_FILE, "a"))
+    print("splits:", train_set.__len__(), dev_set.__len__(), test_set.__len__(), file=open(out_file, "a"))
     del dataset
-    train_loader = data.DataLoader(train_set, batch_size=BATCH_TRACKS, num_workers=NUM_WORKERS, prefetch_factor=2,
-                                   shuffle=True, collate_fn=Collator(BATCH_SIZE, shuffle=True))
-    dev_loader = data.DataLoader(dev_set, batch_size=BATCH_TRACKS//4, num_workers=NUM_WORKERS, prefetch_factor=2,
-                                 shuffle=False, collate_fn=Collator(BATCH_SIZE*4, shuffle=False))
+    train_loader = data.DataLoader(train_set, batch_size=args["batch_tracks"], num_workers=args["num_workers"],
+                                   shuffle=True, collate_fn=Collator(args["batch_size"], shuffle=True))
+    dev_loader = data.DataLoader(dev_set, batch_size=args["batch_tracks"]//4, num_workers=args["num_workers"],
+                                 shuffle=False, collate_fn=Collator(args["batch_size"]*4, shuffle=False))
 
-    model = CREPE(pretrained=False).to(DEVICE)
+    model = CREPE(pretrained=False).to(args["device"])
     device = model.linear.weight.device
-    print("device:", device, file=open(OUT_FILE, "a"))
+    print("device:", device, file=open(out_file, "a"))
     criterion = nn.BCELoss(reduction="mean")
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999), eps=1e-8)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args["learning_rate"], betas=(0.9, 0.999), eps=1e-8)
 
-    log_file = {'epoch': {'train': [], 'dev': []}, 'batch': {'train': [], 'dev': []}}
-    for epoch in range(MAX_EPOCH):
-        model = model.train()
-        epoch_train_loss = 0
-        epoch_dev_loss = 0
-        train_loss = 0
-
+    global_step = 0
+    best_step, best_dev_loss = 0, np.inf  # to do early stopping if the loss is not getting better
+    for epoch in range(args["max_epoch"]):
         for e, (s, l, _) in enumerate(train_loader):
 
-            # train for (BATCH_TRACKS * 512 / BATCH_SIZE) epochs -> 2048 in the current situation
+            # train
+            train_loss = 0
             model = model.train()
             for i, sequence in enumerate(s):
                 sequence = sequence.to(device)
@@ -57,39 +67,31 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-
+                if i == int((500*32)/args["batch_size"]):
+                    break
             torch.cuda.empty_cache()
-            model = model.eval()
-            dev_loss = 0
-            eval_data = {"ref": [], "est": []}
-            with torch.set_grad_enabled(False):
-                for (s, l, f) in dev_loader:
-                    for i, sequence in enumerate(s):
-                        sequence = sequence.to(device)
-                        label = l[i].to(device)
-                        act = model.forward(sequence)
-                        loss = criterion(act, label)
-                        dev_loss += loss.item()
 
-                        est_hz = to_freq(act, viterbi=False).view(-1).numpy()
-                        ref_hz = f[i].view(-1).numpy()
-                        # confidence = act.max(dim=1)[0][mask].numpy()
-                        eval_data["ref"].append(ref_hz)
-                        eval_data["est"].append(est_hz)
-            torch.cuda.empty_cache()
-            ref_hz = np.concatenate(eval_data["ref"])
-            est_hz = np.concatenate(eval_data["est"])
-            print('epoch: {}  '.format(e) + 'trainL: {:.2f}  devL: {:.2f}  '.format(train_loss, dev_loss) +
-                  '    '.join('{}: {:.2f}'.format(k, v) for k, v in eval_from_hz(ref_hz, est_hz).items()),
-                  file=open(OUT_FILE, "a"))
+            # evaluate
+            dev_loss, performance_dict = evaluate(dev_loader, model.eval(), criterion)
+            print('step: {}  '.format(global_step) + 'trainL: {:.2f}  devL: {:.2f}  '.format(train_loss, dev_loss) +
+                  '    '.join('{}: {:.2f}'.format(k, v) for k, v in performance_dict.items()),
+                  file=open(out_file, "a"))
 
-            log_file['batch']['train'].append(train_loss)
-            log_file['batch']['dev'].append(dev_loss)
-            epoch_train_loss += train_loss
-            epoch_dev_loss += dev_loss
-            train_loss = 0
-            with open(SAVE_FILE, 'wb') as fp:
-                pickle.dump(log_file, fp, protocol=pickle.HIGHEST_PROTOCOL)
+            writer.add_scalars('Accuracy', {'RCA50': performance_dict["rca50"],
+                                            'RPA50': performance_dict["rpa50"],
+                                            'RPA25': performance_dict["rpa25"],
+                                            'RPA10': performance_dict["rpa10"]}, global_step=global_step)
+            writer.add_scalars('Loss',  {'Train': train_loss,
+                                         'Dev': dev_loss}, global_step=global_step)
+            writer.flush()
 
-        log_file['epoch']['train'].append(epoch_train_loss)
-        log_file['epoch']['dev'].append(epoch_dev_loss)
+            # save the model if there is improvement
+            if dev_loss < best_dev_loss:
+                torch.save(model.state_dict(), os.path.join(save_dir, model_id))
+                best_dev_loss = dev_loss
+                best_step = global_step
+            elif global_step - best_step > 20:
+                print("\nFinished!!!\nBest Step: {}".format(global_step), file=open(out_file, "a"))
+                raise SystemExit(0)  # stop if dev loss is not reduced for over many epochs
+            global_step += 1
+
