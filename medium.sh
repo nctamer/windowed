@@ -10,6 +10,8 @@
 #SBATCH -e %x-%j.err # File to which STDERR will be written
 
 
+module load torchaudio
+module load SoundFile
 module load PyTorch
 module load CUDA
 module load pandas
