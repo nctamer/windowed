@@ -19,7 +19,7 @@ args = {
     "num_workers": 5,
     "device": "cuda",
 }
-model_id = "bare"
+model_id = "lowpass_gain_polarityinversion"
 
 parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
 
