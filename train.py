@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 import json
+from torch_audiomentations import Compose, Gain, PolarityInversion, LowPassFilter
 
 args = {
     "learning_rate": 4e-4,
@@ -22,6 +23,18 @@ model_id = "bare"
 
 parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
 
+# Initialize augmentation callable
+apply_augmentation = Compose(
+    transforms=[
+        LowPassFilter(p=0.5),
+        Gain(
+            min_gain_in_db=-15.0,
+            max_gain_in_db=5.0,
+            p=0.5,
+        ),
+        PolarityInversion(p=0.5)
+    ]
+)
 
 if __name__ == "__main__":
     models_dir = os.path.join(parent_dir, "models")
@@ -41,7 +54,7 @@ if __name__ == "__main__":
     train_loader = data.DataLoader(train_set, batch_size=args["batch_tracks"], num_workers=args["num_workers"],
                                    shuffle=True, collate_fn=Collator(args["batch_size"], shuffle=True))
     dev_loader = data.DataLoader(dev_set, batch_size=args["batch_tracks"]//4, num_workers=args["num_workers"],
-                                 shuffle=False, collate_fn=Collator(args["batch_size"]*4, shuffle=False))
+                                 shuffle=False, collate_fn=Collator(args["batch_size"]*8, shuffle=False))
 
     model = CREPE(pretrained=False).to(args["device"])
     device = model.linear.weight.device
@@ -59,6 +72,7 @@ if __name__ == "__main__":
             model = model.train()
             for i, sequence in enumerate(s):
                 sequence = sequence.to(device)
+                sequence = apply_augmentation(sequence.unsqueeze(1), sample_rate=16000).squeeze(1)
                 label = l[i].to(device)
                 act = model.forward(sequence)
                 loss = criterion(act, label)

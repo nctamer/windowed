@@ -11,6 +11,7 @@ from scipy.stats import norm
 import random
 import copy
 from scripts.prep_data import load_dict
+from torch_audiomentations import Compose, Gain, PolarityInversion, LowPassFilter
 
 
 AUDIO_SR = 16000
@@ -163,16 +164,43 @@ def partition_dataset(main_dataset, dev_ratio=0.2, test_ratio=0.2):
 
 if __name__ == '__main__':
 
-    data_path = "/home/nazif/PycharmProjects/data/MDB-stem-synth"
+    data_path = "/home/nazif/PycharmProjects/data/Bach10-mf0-synth"
     device = 'cpu'
+
+    # Initialize augmentation callable
+    apply_augmentation = Compose(
+        transforms=[
+            LowPassFilter(
+                p=0.5
+            ),
+            Gain(
+                min_gain_in_db=-15.0,
+                max_gain_in_db=5.0,
+                p=0.5,
+            ),
+            PolarityInversion(p=0.5)
+        ]
+    )
 
     files_per_batch = 4  # the number of batches (separate files) we read in the loader
     batch_sample_size = 128  # the real batch size the GPU sees
     dataset = DictDataset(os.path.join(data_path, "prep"))
-    train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
+    # train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
     collate = Collator(batch_size=batch_sample_size, shuffle=True)
     loader = torch.utils.data.DataLoader(dataset, batch_size=files_per_batch, shuffle=True, collate_fn=collate)
     for (s, l, f) in loader:
         for i, sequence in enumerate(s):
+            perturbed_audio_samples = apply_augmentation(sequence.unsqueeze(1), sample_rate=16000).squeeze(1)
             sequence = sequence.to(device)
             target = l[i].to(device)
+
+    torch_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Make an example tensor with white noise.
+    # This tensor represents 8 audio snippets with 2 channels (stereo) and 2 s of 16 kHz audio.
+    audio_samples = torch.rand(size=(8, 2, 32000), dtype=torch.float32, device=torch_device) - 0.5
+
+    # Apply augmentation. This varies the gain and polarity of (some of)
+    # the audio snippets in the batch independently.
+    perturbed_audio_samples = apply_augmentation(audio_samples, sample_rate=16000)
+
