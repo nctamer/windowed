@@ -9,7 +9,7 @@ import os
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 import json
-from torch_audiomentations import Compose, Gain, PolarityInversion, LowPassFilter
+from torch_audiomentations import Compose, Gain, PolarityInversion, LowPassFilter, AddBackgroundNoise
 
 args = {
     "learning_rate": 4e-4,
@@ -18,8 +18,9 @@ args = {
     "batch_tracks": 512,
     "num_workers": 5,
     "device": "cuda",
+    "augment": True,
 }
-model_id = "lowpass_gain_polarityinversion"
+model_id = "augmented"
 
 parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
 
@@ -32,7 +33,13 @@ apply_augmentation = Compose(
             max_gain_in_db=5.0,
             p=0.5,
         ),
-        PolarityInversion(p=0.5)
+        PolarityInversion(p=0.5),
+        AddBackgroundNoise(
+            background_paths="test_fixtures/bg",
+            min_snr_in_db=5.0,
+            max_snr_in_db=25.0,
+            p=0.5,
+        ),
     ]
 )
 
@@ -55,11 +62,26 @@ if __name__ == "__main__":
                                    shuffle=True, collate_fn=Collator(args["batch_size"], shuffle=True))
     dev_loader = data.DataLoader(dev_set, batch_size=args["batch_tracks"]//4, num_workers=args["num_workers"],
                                  shuffle=False, collate_fn=Collator(args["batch_size"]*8, shuffle=False))
-
-    model = CREPE(pretrained=False).to(args["device"])
-    device = model.linear.weight.device
-    print("device:", device, file=open(out_file, "a"))
     criterion = nn.BCELoss(reduction="sum")
+
+    model = CREPE(pretrained=True).to(args["device"]).eval()
+    device = model.linear.weight.device
+    dev_loss, performance_dict = evaluate(dev_loader, model, criterion)
+    print("device:", device, file=open(out_file, "a"))
+    print('PRETRAINED:  ' + '  devL: {:.2f}  '.format(dev_loss) +
+          '    '.join('{}: {:.3f}'.format(k, v) for k, v in performance_dict.items()),
+          file=open(out_file, "a"))
+
+    writer.add_scalars('ORIGINAL PRETRAINED Accuracy', {'RCA50': float(performance_dict["rca50"]),
+                                                        'RPA50': float(performance_dict["rpa50"]),
+                                                        'RPA25': float(performance_dict["rpa25"]),
+                                                        'RPA10': float(performance_dict["rpa10"]),
+                                                        'RPA5': float(performance_dict["rpa5"])}, global_step=0)
+
+    # NOW TRAIN THE MODEL FROM SCRATCH
+    model = CREPE(pretrained=False).to(args["device"])
+    print("\nTraining started\n", file=open(out_file, "a"))
+
     optimizer = torch.optim.Adam(model.parameters(), lr=args["learning_rate"], betas=(0.9, 0.999), eps=1e-8)
 
     global_step = 0
@@ -72,7 +94,8 @@ if __name__ == "__main__":
             model = model.train()
             for i, sequence in enumerate(s):
                 sequence = sequence.to(device)
-                sequence = apply_augmentation(sequence.unsqueeze(1), sample_rate=16000).squeeze(1)
+                if args["augment"]:
+                    sequence = apply_augmentation(sequence.unsqueeze(1), sample_rate=16000).squeeze(1)
                 label = l[i].to(device)
                 act = model.forward(sequence)
                 loss = criterion(act, label)

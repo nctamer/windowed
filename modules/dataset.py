@@ -11,7 +11,7 @@ from scipy.stats import norm
 import random
 import copy
 from scripts.prep_data import load_dict
-from torch_audiomentations import Compose, Gain, PolarityInversion, LowPassFilter
+from torch_audiomentations import Compose, Gain, PolarityInversion, LowPassFilter, AddBackgroundNoise
 
 
 AUDIO_SR = 16000
@@ -148,6 +148,7 @@ def partition_dataset(main_dataset, dev_ratio=0.2, test_ratio=0.2):
     Partitioning based on tracks
     A better version should definitely consider track durations
     """
+    random.seed(8)
     if hasattr(main_dataset, 'audio_list'):
         idx = set(range(main_dataset.audio_list.__len__()))
     else:
@@ -178,13 +179,17 @@ if __name__ == '__main__':
                 max_gain_in_db=5.0,
                 p=0.5,
             ),
-            PolarityInversion(p=0.5)
+            PolarityInversion(p=0.5),
+            AddBackgroundNoise(
+                background_paths="../test_fixtures/bg_short", p=0.5
+            ),
         ]
     )
 
     files_per_batch = 4  # the number of batches (separate files) we read in the loader
     batch_sample_size = 128  # the real batch size the GPU sees
     dataset = DictDataset(os.path.join(data_path, "prep"))
+
     # train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
     collate = Collator(batch_size=batch_sample_size, shuffle=True)
     loader = torch.utils.data.DataLoader(dataset, batch_size=files_per_batch, shuffle=True, collate_fn=collate)
