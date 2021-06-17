@@ -190,8 +190,8 @@ if __name__ == '__main__':
     )
 
     files_per_batch = 4  # the number of batches (separate files) we read in the loader
-    batch_sample_size = 128  # the real batch size the GPU sees
-    dataset = DictDataset(os.path.join(data_path, "prep"))
+    batch_sample_size = 256  # the real batch size the GPU sees
+    dataset = DictDataset(os.path.join(data_path, "prep"), instrument_name="violin")
 
     # train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.2, test_ratio=0.2)
     collate = Collator(batch_size=batch_sample_size, shuffle=True)
