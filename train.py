@@ -19,9 +19,9 @@ args = {
     "batch_tracks": 512,
     "num_workers": 5,
     "device": "cuda",
-    "augment": True,
+    "augment": False,
 }
-model_id = "augmented"
+model_id = "bare"
 
 parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
 
