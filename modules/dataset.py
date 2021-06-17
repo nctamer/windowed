@@ -54,10 +54,14 @@ class Label:
 
 
 class DictDataset(data.Dataset):
-    def __init__(self, prep_folder):
+    def __init__(self, prep_folder, instrument_name=None):
         super().__init__()
-        self.files, self.audio_names, ids = zip(*[[os.path.join(prep_folder, _)] + _.rsplit("_", 1)
-                                                for _ in sorted(os.listdir(prep_folder))])
+        if instrument_name:
+            self.files, self.audio_names, ids = zip(*[[os.path.join(prep_folder, _)] + _.rsplit("_", 1)
+                                                    for _ in sorted(os.listdir(prep_folder)) if instrument_name in _])
+        else:
+            self.files, self.audio_names, ids = zip(*[[os.path.join(prep_folder, _)] + _.rsplit("_", 1)
+                                                    for _ in sorted(os.listdir(prep_folder))])
         self.audio_map = {_: [] for _ in set(self.audio_names)}
         for i_file, file in enumerate(self.files):
             audio_name = self.audio_names[i_file]
@@ -148,7 +152,6 @@ def partition_dataset(main_dataset, dev_ratio=0.2, test_ratio=0.2):
     Partitioning based on tracks
     A better version should definitely consider track durations
     """
-    random.seed(8)
     if hasattr(main_dataset, 'audio_list'):
         idx = set(range(main_dataset.audio_list.__len__()))
     else:

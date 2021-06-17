@@ -4,12 +4,13 @@ from modules.utils import to_freq, eval_from_hz, print_model_info, evaluate
 from torch.utils import data
 import torch.nn as nn
 import torch
-from modules.dataset import Collator, DictDataset, partition_dataset
+from modules.dataset import Collator, DictDataset
 import os
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 import json
-from torch_audiomentations import Compose, Gain, PolarityInversion, LowPassFilter, AddBackgroundNoise
+from torch_audiomentations import Compose, Gain, PolarityInversion, AddBackgroundNoise, ApplyImpulseResponse, \
+    AddColoredNoise
 
 args = {
     "learning_rate": 4e-4,
@@ -18,27 +19,32 @@ args = {
     "batch_tracks": 512,
     "num_workers": 5,
     "device": "cuda",
-    "augment": False,
+    "augment": True,
 }
-model_id = "bare"
+model_id = "augmented"
 
 parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
 
 # Initialize augmentation callable
 apply_augmentation = Compose(
     transforms=[
-        LowPassFilter(p=0.5),
+        PolarityInversion(p=0.5),
         Gain(
             min_gain_in_db=-15.0,
             max_gain_in_db=5.0,
-            p=0.5,
+            p=0.5, mode="per_batch"
         ),
-        PolarityInversion(p=0.5),
+        ApplyImpulseResponse(ir_paths="test_fixtures/ir",
+                             p=0.5, mode="per_batch"),
+        AddColoredNoise(min_snr_in_db=10.0,
+                        max_snr_in_db=30.0,
+                        p=0.3, mode="per_batch"),
         AddBackgroundNoise(
-            background_paths="test_fixtures/bg",
-            min_snr_in_db=5.0,
-            max_snr_in_db=25.0,
-            p=0.5,
+            background_paths="test_fixtures/bg_short",
+            min_snr_in_db=10.0,
+            max_snr_in_db=30.0,
+            p=0.2,
+            mode="per_batch"
         ),
     ]
 )
@@ -54,10 +60,12 @@ if __name__ == "__main__":
         json.dump(args, json_file)
     writer = print_model_info(model_id, args, writer)
     print("args:\n",   '    '.join('{}: {}'.format(k, v) for k, v in args.items()), file=open(out_file, "w"))
-    dataset = DictDataset(os.path.join(parent_dir, "data/MDB-stem-synth/prep"))
-    train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.05, test_ratio=0.05)
+    train_set = DictDataset(os.path.join(parent_dir, "data/MDB-stem-synth/prep"))
+    dev_set = DictDataset(os.path.join(parent_dir, "data/Bach10-mf0-synth/prep"), instrument_name="violin")
+    test_set = DictDataset(os.path.join(parent_dir, "data/Bach10-mf0-synth/prep"))
+    # train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.05, test_ratio=0.05)
     print("splits:", train_set.__len__(), dev_set.__len__(), test_set.__len__(), file=open(out_file, "a"))
-    del dataset
+
     train_loader = data.DataLoader(train_set, batch_size=args["batch_tracks"], num_workers=args["num_workers"],
                                    shuffle=True, collate_fn=Collator(args["batch_size"], shuffle=True))
     dev_loader = data.DataLoader(dev_set, batch_size=args["batch_tracks"]//4, num_workers=args["num_workers"],
