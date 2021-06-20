@@ -9,7 +9,7 @@ from scipy.stats import norm
 from six.moves import cPickle as pickle
 
 
-AUDIO_SR = 16000
+AUDIO_SR = 44100
 WINDOW_LEN = 1024
 
 LABEL = {
@@ -106,11 +106,19 @@ class PrepareDataset(data.Dataset):
 
 if __name__ == '__main__':
 
-    data_path = "/homedtic/ntamer/instrument_pitch_tracker/data/Bach10-mf0-synth"
+    """ Content of prep44100 folder:
+    - SR: 44100
+    - window length: 1024
+    - #segments per file: 256"""
+
+    base_path = "/homedtic/ntamer/instrument_pitch_tracker/data"
     #data_path = "/home/nazif/PycharmProjects/data/Bach10-mf0-synth"
 
-    dataset = PrepareDataset(audio_folder=os.path.join(data_path, "audio_stems"),
-                             annotation_folder=os.path.join(data_path, "annotation_stems"),
-                             save_folder=os.path.join(data_path, "prep"), save_size=512)
-    for n in dataset:
-        print(n)
+    for data_path in ["Bach-mf0-synth", "MDB-stem-synth"]:
+        data_path = os.path.join(base_path, data_path)
+
+        dataset = PrepareDataset(audio_folder=os.path.join(data_path, "audio_stems"),
+                                 annotation_folder=os.path.join(data_path, "annotation_stems"),
+                                 save_folder=os.path.join(data_path, "prep44100"), save_size=256)
+        for n in dataset:
+            print(n)
