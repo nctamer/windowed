@@ -20,8 +20,9 @@ args = {
     "num_workers": 5,
     "device": "cuda",
     "augment": False,
+    "data": "prep44100"
 }
-model_id = "bare"
+model_id = "bare44100"
 
 parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
 
@@ -60,9 +61,9 @@ if __name__ == "__main__":
         json.dump(args, json_file)
     writer = print_model_info(model_id, args, writer)
     print("args:\n",   '    '.join('{}: {}'.format(k, v) for k, v in args.items()), file=open(out_file, "w"))
-    train_set = DictDataset(os.path.join(parent_dir, "data/MDB-stem-synth/prep"))
-    dev_set = DictDataset(os.path.join(parent_dir, "data/Bach10-mf0-synth/prep"), instrument_name="violin")
-    test_set = DictDataset(os.path.join(parent_dir, "data/Bach10-mf0-synth/prep"))
+    train_set = DictDataset(os.path.join(parent_dir, "data/MDB-stem-synth", args["data"]))
+    dev_set = DictDataset(os.path.join(parent_dir, "data/Bach10-mf0-synth", args["data"]), instrument_name="violin")
+    test_set = DictDataset(os.path.join(parent_dir, "data/Bach10-mf0-synth", args["data"]))
     # train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.05, test_ratio=0.05)
     print("splits:", train_set.__len__(), dev_set.__len__(), test_set.__len__(), file=open(out_file, "a"))
 
