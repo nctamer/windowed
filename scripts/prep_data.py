@@ -114,7 +114,7 @@ if __name__ == '__main__':
     base_path = "/homedtic/ntamer/instrument_pitch_tracker/data"
     #data_path = "/home/nazif/PycharmProjects/data/Bach10-mf0-synth"
 
-    for data_path in ["Bach10-mf0-synth"]:  # , "MDB-stem-synth"]:
+    for data_path in ["Bach10-mf0-synth", "MDB-stem-synth"]:
         data_path = os.path.join(base_path, data_path)
 
         dataset = PrepareDataset(audio_folder=os.path.join(data_path, "audio_stems"),
