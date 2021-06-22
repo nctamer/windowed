@@ -1,4 +1,4 @@
-
+from modules.dataset import Label
 import csv
 import numpy as np
 import librosa
@@ -10,13 +10,13 @@ from six.moves import cPickle as pickle
 
 
 AUDIO_SR = 44100
-WINDOW_LEN = 1024
+WINDOW_LEN = 2048
 
 LABEL = {
-    "n_bins": 360,
-    "min_f0_hz": 31.70,
-    "granularity_c": 20,
-    "smooth_std_c": 25
+    "n_bins": 720,
+    "min_f0_hz": 32.7032,
+    "granularity_c": 10,
+    "smooth_std_c": 12,
 }
 
 
@@ -31,32 +31,6 @@ def load_dict(filename_):
     return ret_di
 
 
-class Label:
-    def __init__(self, n_bins, min_f0_hz, granularity_c, smooth_std_c):
-        self.n_bins = n_bins
-        self.min_f0_hz = min_f0_hz
-        self.min_f0_c = melody.hz2cents(np.array([min_f0_hz]))[0]
-        self.granularity_c = granularity_c
-        self.smooth_std_c = smooth_std_c
-        self.pdf_normalizer = norm.pdf(0)
-        self.centers_c = np.linspace(0, (self.n_bins - 1) * self.granularity_c, self.n_bins) + self.min_f0_c
-
-    def c2label(self, pitch_c):
-        """
-        Converts pitch labels in cents, to a vector representing the classification label
-        Uses the normal distribution centered at the pitch and the standard deviation of 25 cents,
-        normalized so that the exact prediction has the value 1.0.
-        :param pitch_c: a number or numpy array of shape (1,)
-        pitch values in cents, as returned by hz2cents with base_frequency = 10 (default)
-        :return: ndarray
-        """
-        result = norm.pdf((self.centers_c - pitch_c) / self.smooth_std_c).astype(np.float32)
-        result /= self.pdf_normalizer
-        return result
-
-    def hz2label(self, pitch_hz):
-        pitch_c = melody.hz2cents(np.array([pitch_hz]))[0]
-        return self.c2label(pitch_c)
 
 
 class PrepareDataset(data.Dataset):
@@ -111,6 +85,13 @@ if __name__ == '__main__':
     - window length: 1024
     - #segments per file: 256"""
 
+    """ Content of prep2048 folder:
+    - SR: 44100
+    - window length: 2048
+    - #segments per file: 256
+    - LABEL "n_bins": 720, "min_f0_hz": 32.7032, "granularity_c": 10, "smooth_std_c": 12
+    """
+
     base_path = "/homedtic/ntamer/instrument_pitch_tracker/data"
     #data_path = "/home/nazif/PycharmProjects/data/Bach10-mf0-synth"
 
@@ -119,6 +100,6 @@ if __name__ == '__main__':
 
         dataset = PrepareDataset(audio_folder=os.path.join(data_path, "audio_stems"),
                                  annotation_folder=os.path.join(data_path, "annotation_stems"),
-                                 save_folder=os.path.join(data_path, "prep44100"), save_size=256)
+                                 save_folder=os.path.join(data_path, "prep2048"), save_size=256)
         for n in dataset:
             print(n)

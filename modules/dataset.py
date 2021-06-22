@@ -34,6 +34,7 @@ class Label:
         self.smooth_std_c = smooth_std_c
         self.pdf_normalizer = norm.pdf(0)
         self.centers_c = np.linspace(0, (self.n_bins - 1) * self.granularity_c, self.n_bins) + self.min_f0_c
+        self.activation_sum_range = int(np.floor(100/self.smooth_std_c))
 
     def c2label(self, pitch_c):
         """
@@ -51,6 +52,31 @@ class Label:
     def hz2label(self, pitch_hz):
         pitch_c = melody.hz2cents(np.array([pitch_hz]))[0]
         return self.c2label(pitch_c)
+
+    def salience2c(self, salience):
+        """
+        find the weighted average cents near the argmax bin
+        """
+        if isinstance(salience, np.ndarray):
+            salience = torch.from_numpy(salience)
+        if salience.ndim == 1:
+            center = int(torch.argmax(salience))
+            start = max(0, center - self.activation_sum_range)
+            end = min(len(salience), center + 1 + self.activation_sum_range)
+            salience = salience[start:end]
+            product_sum = torch.sum(
+                salience * torch.tensor(self.centers_c[start:end]).to(salience.device))
+            weight_sum = torch.sum(salience)
+            return product_sum / weight_sum
+        if salience.ndim == 2:
+            return torch.tensor([self.salience2c(salience[i, :]) for i in range(salience.shape[0])])
+        raise Exception("label should be either 1d or 2d Tensor")
+
+    def salience2hz(self, salience):
+        pitch_c = self.salience2c(salience)
+        pitch_hz = 10 * 2 ** (pitch_c / 1200)
+        pitch_hz[torch.isnan(pitch_hz)] = 0
+        return pitch_hz
 
 
 class DictDataset(data.Dataset):

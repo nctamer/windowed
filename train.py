@@ -1,6 +1,6 @@
 import numpy as np
 from modules.crepe import CREPE, get_frame
-from modules.utils import to_freq, eval_from_hz, print_model_info, evaluate
+from modules.utils import print_model_info, evaluate
 from torch.utils import data
 import torch.nn as nn
 import torch
@@ -20,9 +20,9 @@ args = {
     "num_workers": 5,
     "device": "cuda",
     "augment": False,
-    "data": "prep44100"
+    "data": "prep2048"
 }
-model_id = "bare44100"
+model_id = "bare2048"
 
 parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
 
