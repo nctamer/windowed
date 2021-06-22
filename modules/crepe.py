@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
-#import torchaudio
 import sys
-from modules.utils import *
+import os
 import numpy as np
 
-
+"""
 def get_frame(audio, step_size, center):
     if center:
         audio = nn.functional.pad(audio, pad=(512, 512))
@@ -20,16 +19,17 @@ def get_frame(audio, step_size, center):
     frames -= (torch.mean(frames, axis=1).unsqueeze(-1))
     frames /= (torch.std(frames, axis=1).unsqueeze(-1))
     return frames
+"""
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, f, w, s, in_channels):
+    def __init__(self, f, w, s, d, in_channels):
         super().__init__()
         p1 = (w - 1) // 2
         p2 = (w - 1) - p1
         self.pad = nn.ZeroPad2d((0, 0, p1, p2))
 
-        self.conv2d = nn.Conv2d(in_channels=in_channels, out_channels=f, kernel_size=(w, 1), stride=s)
+        self.conv2d = nn.Conv2d(in_channels=in_channels, out_channels=f, kernel_size=(w, 1), stride=s, dilation=d)
         self.relu = nn.ReLU()
         self.bn = nn.BatchNorm2d(f)
         self.pool = nn.MaxPool2d(kernel_size=(2, 1))
@@ -58,21 +58,16 @@ class CREPE(nn.Module):
         filters = [1] + filters
         widths = [512, 64, 64, 64, 64, 64]
         strides = [(4, 1), (1, 1), (1, 1), (1, 1), (1, 1), (1, 1)]
+        dilation = [(1, 1), (4, 1), (4, 1), (4, 1), (4, 1), (4, 1)]
 
         for i in range(len(self.layers)):
-            f, w, s, in_channel = filters[i + 1], widths[i], strides[i], filters[i]
-            self.add_module("conv%d" % i, ConvBlock(f, w, s, in_channel))
+            f, w, d, s, in_channel = filters[i + 1], widths[i], dilation[i], strides[i], filters[i]
+            self.add_module("conv%d" % i, ConvBlock(f, w, s, d, in_channel))
 
         self.linear = nn.Linear(64 * capacity_multiplier, 360)
-        if pretrained:
-            self.load_weight(model_capacity)
-        self.eval()
 
-    def load_weight(self, model_capacity):
-        download_weights(model_capacity)
-        package_dir = os.path.dirname(os.path.realpath(__file__))
-        filename = "crepe-{}.pth".format(model_capacity)
-        self.load_state_dict(torch.load(os.path.join(package_dir, filename)))
+    def load_weight(self, model_path):
+        self.load_state_dict(torch.load(model_path))
 
     def forward(self, x):
         # x : shape (batch, sample)
@@ -113,7 +108,6 @@ class CREPE(nn.Module):
             activation_stack.append(act.cpu())
         activation = torch.cat(activation_stack, dim=0)
         return activation
-    '''
 
     def predict(self, audio, sr, viterbi=False, center=True, step_size=10, batch_size=128):
         activation = self.get_activation(audio, sr, batch_size=batch_size, step_size=step_size)
@@ -122,7 +116,6 @@ class CREPE(nn.Module):
         time = torch.arange(confidence.shape[0]) * step_size / 1000.0
         return time, frequency, confidence, activation
 
-    '''
     def process_file(self, file, output=None, viterbi=False,
                      center=True, step_size=10, save_plot=False, batch_size=128):
         try:
@@ -159,6 +152,7 @@ class CREPE(nn.Module):
 
             imwrite(plot_file, (255 * image).astype(np.uint8))
     '''
+
 
 if __name__ == "__main__":
 
