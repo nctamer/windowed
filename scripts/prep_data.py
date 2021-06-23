@@ -85,8 +85,6 @@ def load_dict(filename_):
     return ret_di
 
 
-
-
 class PrepareDataset(data.Dataset):
     def __init__(self, audio_folder, annotation_folder, save_folder, audio_file_extension="wav", save_size=512):
         super().__init__()

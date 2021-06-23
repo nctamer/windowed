@@ -141,7 +141,7 @@ def print_model_info(model_id, args, writer):
 
 
 def evaluate(dev_loader, model, criterion):
-    salience2hz = dev_loader.dataset.label.salience2hz()
+    salience2hz = dev_loader.dataset.label.salience2hz
     device = model.linear.weight.device
     dev_loss = 0
     eval_data = {"ref": [], "est": []}

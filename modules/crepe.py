@@ -25,8 +25,8 @@ def get_frame(audio, step_size, center):
 class ConvBlock(nn.Module):
     def __init__(self, f, w, s, d, in_channels):
         super().__init__()
-        p1 = (w - 1) // 2
-        p2 = (w - 1) - p1
+        p1 = d[0]*(w - 1) // 2
+        p2 = d[0]*(w - 1) - p1
         self.pad = nn.ZeroPad2d((0, 0, p1, p2))
 
         self.conv2d = nn.Conv2d(in_channels=in_channels, out_channels=f, kernel_size=(w, 1), stride=s, dilation=d)
@@ -46,7 +46,7 @@ class ConvBlock(nn.Module):
 
 
 class CREPE(nn.Module):
-    def __init__(self, model_capacity="full", pretrained=True):
+    def __init__(self, model_capacity="full"):
         super().__init__()
 
         capacity_multiplier = {
@@ -57,14 +57,15 @@ class CREPE(nn.Module):
         filters = [n * capacity_multiplier for n in [32, 4, 4, 4, 8, 16]]
         filters = [1] + filters
         widths = [512, 64, 64, 64, 64, 64]
-        strides = [(4, 1), (1, 1), (1, 1), (1, 1), (1, 1), (1, 1)]
-        dilation = [(1, 1), (4, 1), (4, 1), (4, 1), (4, 1), (4, 1)]
+        strides = [(4, 1), (2, 1), (1, 1), (1, 1), (1, 1), (1, 1)]
+        dilation = [(1, 1), (3, 1), (5, 1), (7, 1), (7, 1), (7, 1)]
 
         for i in range(len(self.layers)):
             f, w, d, s, in_channel = filters[i + 1], widths[i], dilation[i], strides[i], filters[i]
             self.add_module("conv%d" % i, ConvBlock(f, w, s, d, in_channel))
 
-        self.linear = nn.Linear(64 * capacity_multiplier, 360)
+        self.linear = nn.Linear(64 * capacity_multiplier, 720)
+        # TODO: experiment with stride ib the second filter and the last linear into 128*capacityMul
 
     def load_weight(self, model_path):
         self.load_state_dict(torch.load(model_path))

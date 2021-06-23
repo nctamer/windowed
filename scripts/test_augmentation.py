@@ -1,7 +1,5 @@
 import csv
-import numpy as np
 from scipy.io.wavfile import write
-import csv
 import numpy as np
 import librosa
 import librosa.display

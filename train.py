@@ -1,5 +1,5 @@
 import numpy as np
-from modules.crepe import CREPE, get_frame
+from modules.crepe import CREPE
 from modules.utils import print_model_info, evaluate
 from torch.utils import data
 import torch.nn as nn
@@ -22,7 +22,8 @@ args = {
     "augment": False,
     "data": "prep2048"
 }
-model_id = "bare2048"
+
+model_id = "dilated2048"
 
 parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
 
@@ -73,26 +74,12 @@ if __name__ == "__main__":
                                  shuffle=False, collate_fn=Collator(args["batch_size"]*8, shuffle=False))
     criterion = nn.BCELoss(reduction="sum")
 
-    model = CREPE(pretrained=True).to(args["device"]).eval()
-    device = model.linear.weight.device
-    dev_loss, performance_dict = evaluate(dev_loader, model, criterion)
-    print("device:", device, file=open(out_file, "a"))
-    print('PRETRAINED:  ' + '  devL: {:.2f}  '.format(dev_loss) +
-          '    '.join('{}: {:.3f}'.format(k, v) for k, v in performance_dict.items()),
-          file=open(out_file, "a"))
-
-    writer.add_scalars('ORIGINAL PRETRAINED Accuracy', {'RCA50': float(performance_dict["rca50"]),
-                                                        'RPA50': float(performance_dict["rpa50"]),
-                                                        'RPA25': float(performance_dict["rpa25"]),
-                                                        'RPA10': float(performance_dict["rpa10"]),
-                                                        'RPA5': float(performance_dict["rpa5"])}, global_step=0)
-
     # NOW TRAIN THE MODEL FROM SCRATCH
-    model = CREPE(pretrained=False).to(args["device"])
+    model = CREPE().to(args["device"])
+    device = model.linear.weight.device
     print("\nTraining started\n", file=open(out_file, "a"))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args["learning_rate"], betas=(0.9, 0.999), eps=1e-8)
-
     global_step = 0
     best_step, best_dev_loss = 0, np.inf  # to do early stopping if the loss is not getting better
     for epoch in range(args["max_epoch"]):
