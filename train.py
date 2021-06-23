@@ -13,7 +13,7 @@ from torch_audiomentations import Compose, Gain, PolarityInversion, AddBackgroun
     AddColoredNoise
 
 args = {
-    "learning_rate": 4e-3,
+    "learning_rate": 8e-4,
     "max_epoch": 200,
     "batch_size": 1024,
     "batch_tracks": 512,
