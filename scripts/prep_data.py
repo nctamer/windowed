@@ -6,11 +6,8 @@ from torch.utils import data
 from mir_eval import melody
 from scipy.stats import norm
 from six.moves import cPickle as pickle
-try:
-    from modules.dataset import Label
-except ImportError:
-    from ... import modules
-    from modules.dataset import Label
+import torch
+
 
 AUDIO_SR = 44100
 WINDOW_LEN = 2048
@@ -21,6 +18,60 @@ LABEL = {
     "granularity_c": 10,
     "smooth_std_c": 12,
 }
+
+
+class Label:
+    def __init__(self, n_bins, min_f0_hz, granularity_c, smooth_std_c):
+        self.n_bins = n_bins
+        self.min_f0_hz = min_f0_hz
+        self.min_f0_c = melody.hz2cents(np.array([min_f0_hz]))[0]
+        self.granularity_c = granularity_c
+        self.smooth_std_c = smooth_std_c
+        self.pdf_normalizer = norm.pdf(0)
+        self.centers_c = np.linspace(0, (self.n_bins - 1) * self.granularity_c, self.n_bins) + self.min_f0_c
+        self.activation_sum_range = int(np.floor(100/self.smooth_std_c))
+
+    def c2label(self, pitch_c):
+        """
+        Converts pitch labels in cents, to a vector representing the classification label
+        Uses the normal distribution centered at the pitch and the standard deviation of 25 cents,
+        normalized so that the exact prediction has the value 1.0.
+        :param pitch_c: a number or numpy array of shape (1,)
+        pitch values in cents, as returned by hz2cents with base_frequency = 10 (default)
+        :return: ndarray
+        """
+        result = norm.pdf((self.centers_c - pitch_c) / self.smooth_std_c).astype(np.float32)
+        result /= self.pdf_normalizer
+        return result
+
+    def hz2label(self, pitch_hz):
+        pitch_c = melody.hz2cents(np.array([pitch_hz]))[0]
+        return self.c2label(pitch_c)
+
+    def salience2c(self, salience):
+        """
+        find the weighted average cents near the argmax bin
+        """
+        if isinstance(salience, np.ndarray):
+            salience = torch.from_numpy(salience)
+        if salience.ndim == 1:
+            center = int(torch.argmax(salience))
+            start = max(0, center - self.activation_sum_range)
+            end = min(len(salience), center + 1 + self.activation_sum_range)
+            salience = salience[start:end]
+            product_sum = torch.sum(
+                salience * torch.tensor(self.centers_c[start:end]).to(salience.device))
+            weight_sum = torch.sum(salience)
+            return product_sum / weight_sum
+        if salience.ndim == 2:
+            return torch.tensor([self.salience2c(salience[i, :]) for i in range(salience.shape[0])])
+        raise Exception("label should be either 1d or 2d Tensor")
+
+    def salience2hz(self, salience):
+        pitch_c = self.salience2c(salience)
+        pitch_hz = 10 * 2 ** (pitch_c / 1200)
+        pitch_hz[torch.isnan(pitch_hz)] = 0
+        return pitch_hz
 
 
 def save_dict(di_, filename_):
