@@ -9,8 +9,7 @@ from six.moves import cPickle as pickle
 try:
     from modules.dataset import Label
 except ImportError:
-    import sys
-    sys.path.append('..')
+    from ... import modules
     from modules.dataset import Label
 
 AUDIO_SR = 44100
