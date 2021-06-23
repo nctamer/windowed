@@ -13,9 +13,9 @@ from torch_audiomentations import Compose, Gain, PolarityInversion, AddBackgroun
     AddColoredNoise
 
 args = {
-    "learning_rate": 4e-4,
+    "learning_rate": 4e-3,
     "max_epoch": 200,
-    "batch_size": 512,
+    "batch_size": 1024,
     "batch_tracks": 512,
     "num_workers": 6,
     "device": "cuda",
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     train_loader = data.DataLoader(train_set, batch_size=args["batch_tracks"], num_workers=args["num_workers"],
                                    shuffle=True, collate_fn=Collator(args["batch_size"], shuffle=True))
     dev_loader = data.DataLoader(dev_set, batch_size=args["batch_tracks"]//4, num_workers=args["num_workers"],
-                                 shuffle=False, collate_fn=Collator(args["batch_size"]*4, shuffle=False))
+                                 shuffle=False, collate_fn=Collator(args["batch_size"]*2, shuffle=False))
     criterion = nn.BCELoss(reduction="sum")
     model = CREPE().to(args["device"])
     device = model.linear.weight.device
