@@ -15,9 +15,9 @@ from torch_audiomentations import Compose, Gain, PolarityInversion, AddBackgroun
 args = {
     "learning_rate": 4e-4,
     "max_epoch": 200,
-    "batch_size": 128,
+    "batch_size": 512,
     "batch_tracks": 512,
-    "num_workers": 5,
+    "num_workers": 6,
     "device": "cuda",
     "augment": False,
     "data": "prep2048"
@@ -51,6 +51,8 @@ apply_augmentation = Compose(
 
 if __name__ == "__main__":
     debug_mode = False
+
+    """ dataset & model """
     if debug_mode:  # on the local device
         args["device"] = "cpu"
         args["batch_size"] = 4
@@ -62,7 +64,6 @@ if __name__ == "__main__":
         parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
         train_set = DictDataset(os.path.join(parent_dir, "data/MDB-stem-synth", args["data"]))
     models_dir = os.path.join(parent_dir, "models")
-    """ dataset & model """
     save_dir = os.path.join(models_dir, model_id + "_" + str(datetime.now().strftime("%b%d_%H")))
     os.makedirs(save_dir, exist_ok=True)
     out_file = os.path.join(save_dir, "out.txt")
@@ -71,7 +72,6 @@ if __name__ == "__main__":
         json.dump(args, json_file)
     writer = print_model_info(model_id, args, writer)
     print("args:\n",   '    '.join('{}: {}'.format(k, v) for k, v in args.items()), file=open(out_file, "w"))
-
     dev_set = DictDataset(os.path.join(parent_dir, "data/Bach10-mf0-synth", args["data"]), instrument_name="violin")
     test_set = DictDataset(os.path.join(parent_dir, "data/Bach10-mf0-synth", args["data"]))
     # train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.05, test_ratio=0.05)
@@ -80,17 +80,15 @@ if __name__ == "__main__":
     train_loader = data.DataLoader(train_set, batch_size=args["batch_tracks"], num_workers=args["num_workers"],
                                    shuffle=True, collate_fn=Collator(args["batch_size"], shuffle=True))
     dev_loader = data.DataLoader(dev_set, batch_size=args["batch_tracks"]//4, num_workers=args["num_workers"],
-                                 shuffle=False, collate_fn=Collator(args["batch_size"]*8, shuffle=False))
+                                 shuffle=False, collate_fn=Collator(args["batch_size"]*4, shuffle=False))
     criterion = nn.BCELoss(reduction="sum")
-
-    # NOW TRAIN THE MODEL FROM SCRATCH
     model = CREPE().to(args["device"])
     device = model.linear.weight.device
-    print("\nTraining started\n", file=open(out_file, "a"))
 
+    """ training """
+    print("\nTraining started\n", file=open(out_file, "a"))
     optimizer = torch.optim.Adam(model.parameters(), lr=args["learning_rate"], betas=(0.9, 0.999), eps=1e-8)
     global_step = 0
-
     if debug_mode:
         dev_loss, performance_dict = evaluate(dev_loader, model.eval(), criterion)
 
@@ -104,7 +102,7 @@ if __name__ == "__main__":
             for i, sequence in enumerate(s):
                 sequence = sequence.to(device)
                 if args["augment"]:
-                    sequence = apply_augmentation(sequence.unsqueeze(1), sample_rate=16000).squeeze(1)
+                    sequence = apply_augmentation(sequence.unsqueeze(1), sample_rate=44100).squeeze(1)
                 label = l[i].to(device)
                 act = model.forward(sequence)
                 loss = criterion(act, label)
