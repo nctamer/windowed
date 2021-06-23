@@ -18,10 +18,10 @@ AUDIO_SR = 16000
 WINDOW_LEN = 1024
 
 LABEL = {
-    "n_bins": 360,
-    "min_f0_hz": 31.70,
-    "granularity_c": 20,
-    "smooth_std_c": 25
+    "n_bins": 720,
+    "min_f0_hz": 32.7032,
+    "granularity_c": 10,
+    "smooth_std_c": 12,
 }
 
 
