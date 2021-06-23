@@ -1,4 +1,3 @@
-from modules.dataset import Label
 import csv
 import numpy as np
 import librosa
@@ -7,7 +6,12 @@ from torch.utils import data
 from mir_eval import melody
 from scipy.stats import norm
 from six.moves import cPickle as pickle
-
+try:
+    from modules.dataset import Label
+except ImportError:
+    import sys
+    sys.path.append('..')
+    from modules.dataset import Label
 
 AUDIO_SR = 44100
 WINDOW_LEN = 2048
