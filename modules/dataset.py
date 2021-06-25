@@ -1,4 +1,4 @@
-
+import torch.nn as nn
 import csv
 import numpy as np
 import librosa
@@ -53,14 +53,15 @@ class Label:
         pitch_c = melody.hz2cents(np.array([pitch_hz]))[0]
         return self.c2label(pitch_c)
 
-    def salience2c(self, salience):
+    def salience2c(self, salience, center=None):
         """
         find the weighted average cents near the argmax bin
         """
         if isinstance(salience, np.ndarray):
             salience = torch.from_numpy(salience)
         if salience.ndim == 1:
-            center = int(torch.argmax(salience))
+            if center is None:
+                center = int(torch.argmax(salience))
             start = max(0, center - self.activation_sum_range)
             end = min(len(salience), center + 1 + self.activation_sum_range)
             salience = salience[start:end]
@@ -72,8 +73,46 @@ class Label:
             return torch.tensor([self.salience2c(salience[i, :]) for i in range(salience.shape[0])])
         raise Exception("label should be either 1d or 2d Tensor")
 
-    def salience2hz(self, salience):
-        pitch_c = self.salience2c(salience)
+    def salience2c_viterbi(self, salience):
+        """
+        Find the Viterbi path using a transition prior that induces pitch
+        continuity.
+
+        * Note : This is NOT implemented with pytorch.
+        """
+        from hmmlearn import hmm
+
+        # uniform prior on the starting pitch
+        starting = np.ones(self.n_bins) / self.n_bins
+
+        # transition probabilities inducing continuous pitch
+        xx, yy = np.meshgrid(range(self.n_bins), range(self.n_bins))
+        transition = np.maximum(12 - abs(xx - yy), 0)
+        transition = transition / np.sum(transition, axis=1)[:, None]
+
+        # emission probability = fixed probability for self, evenly distribute the
+        # others
+        self_emission = 0.1
+        emission = (np.eye(self.n_bins) * self_emission + np.ones(shape=(self.n_bins, self.n_bins)) *
+                    ((1 - self_emission) / self.n_bins))
+
+        # fix the model parameters because we are not optimizing the model
+        model = hmm.MultinomialHMM(self.n_bins, starting, transition)
+        model.startprob_, model.transmat_, model.emissionprob_ = \
+            starting, transition, emission
+
+        # find the Viterbi path
+        observations = np.argmax(salience, axis=1)
+        path = model.predict(observations.reshape(-1, 1), [len(observations)])
+
+        return np.array([self.salience2c(salience[i, :], path[i]) for i in range(len(observations))])
+
+    def salience2hz(self, salience, viterbi=False):
+        if viterbi:
+            pitch_c = self.salience2c_viterbi(salience.detach().numpy())
+            pitch_c = torch.tensor(pitch_c)
+        else:
+            pitch_c = self.salience2c(salience)
         pitch_hz = 10 * 2 ** (pitch_c / 1200)
         pitch_hz[torch.isnan(pitch_hz)] = 0
         return pitch_hz
