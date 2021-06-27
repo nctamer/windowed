@@ -1,6 +1,6 @@
 import numpy as np
-from modules.crepe import CREPE, get_frame
-from modules.utils import to_freq, eval_from_hz, print_model_info, evaluate
+from modules.crepe import CREPE
+from modules.utils import print_model_info, evaluate
 from torch.utils import data
 import torch.nn as nn
 import torch
@@ -13,18 +13,17 @@ from torch_audiomentations import Compose, Gain, PolarityInversion, AddBackgroun
     AddColoredNoise
 
 args = {
-    "learning_rate": 4e-4,
+    "learning_rate": 8e-4,
     "max_epoch": 200,
-    "batch_size": 128,
+    "batch_size": 1024,
     "batch_tracks": 512,
-    "num_workers": 5,
+    "num_workers": 6,
     "device": "cuda",
     "augment": False,
-    "data": "prep44100"
+    "data": "prep2048"
 }
-model_id = "bare44100"
 
-parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
+model_id = "dilated2048"
 
 # Initialize augmentation callable
 apply_augmentation = Compose(
@@ -51,8 +50,20 @@ apply_augmentation = Compose(
 )
 
 if __name__ == "__main__":
-    models_dir = os.path.join(parent_dir, "models")
+    debug_mode = False
+
     """ dataset & model """
+    if debug_mode:  # on the local device
+        args["device"] = "cpu"
+        args["batch_size"] = 4
+        args["batch_tracks"] = 4
+        args["num_workers"] = 2
+        parent_dir = "/home/nazif/PycharmProjects"
+        train_set = DictDataset(os.path.join(parent_dir, "data/Bach10-mf0-synth", args["data"]))
+    else:
+        parent_dir = "/homedtic/ntamer/instrument_pitch_tracker/"
+        train_set = DictDataset(os.path.join(parent_dir, "data/MDB-stem-synth", args["data"]))
+    models_dir = os.path.join(parent_dir, "models")
     save_dir = os.path.join(models_dir, model_id + "_" + str(datetime.now().strftime("%b%d_%H")))
     os.makedirs(save_dir, exist_ok=True)
     out_file = os.path.join(save_dir, "out.txt")
@@ -61,7 +72,6 @@ if __name__ == "__main__":
         json.dump(args, json_file)
     writer = print_model_info(model_id, args, writer)
     print("args:\n",   '    '.join('{}: {}'.format(k, v) for k, v in args.items()), file=open(out_file, "w"))
-    train_set = DictDataset(os.path.join(parent_dir, "data/MDB-stem-synth", args["data"]))
     dev_set = DictDataset(os.path.join(parent_dir, "data/Bach10-mf0-synth", args["data"]), instrument_name="violin")
     test_set = DictDataset(os.path.join(parent_dir, "data/Bach10-mf0-synth", args["data"]))
     # train_set, dev_set, test_set = partition_dataset(dataset, dev_ratio=0.05, test_ratio=0.05)
@@ -70,30 +80,18 @@ if __name__ == "__main__":
     train_loader = data.DataLoader(train_set, batch_size=args["batch_tracks"], num_workers=args["num_workers"],
                                    shuffle=True, collate_fn=Collator(args["batch_size"], shuffle=True))
     dev_loader = data.DataLoader(dev_set, batch_size=args["batch_tracks"]//4, num_workers=args["num_workers"],
-                                 shuffle=False, collate_fn=Collator(args["batch_size"]*8, shuffle=False))
+                                 shuffle=False, collate_fn=Collator(args["batch_size"]*2, shuffle=False))
     criterion = nn.BCELoss(reduction="sum")
-
-    model = CREPE(pretrained=True).to(args["device"]).eval()
+    model = CREPE().to(args["device"])
     device = model.linear.weight.device
-    dev_loss, performance_dict = evaluate(dev_loader, model, criterion)
-    print("device:", device, file=open(out_file, "a"))
-    print('PRETRAINED:  ' + '  devL: {:.2f}  '.format(dev_loss) +
-          '    '.join('{}: {:.3f}'.format(k, v) for k, v in performance_dict.items()),
-          file=open(out_file, "a"))
 
-    writer.add_scalars('ORIGINAL PRETRAINED Accuracy', {'RCA50': float(performance_dict["rca50"]),
-                                                        'RPA50': float(performance_dict["rpa50"]),
-                                                        'RPA25': float(performance_dict["rpa25"]),
-                                                        'RPA10': float(performance_dict["rpa10"]),
-                                                        'RPA5': float(performance_dict["rpa5"])}, global_step=0)
-
-    # NOW TRAIN THE MODEL FROM SCRATCH
-    model = CREPE(pretrained=False).to(args["device"])
+    """ training """
     print("\nTraining started\n", file=open(out_file, "a"))
-
     optimizer = torch.optim.Adam(model.parameters(), lr=args["learning_rate"], betas=(0.9, 0.999), eps=1e-8)
-
     global_step = 0
+    if debug_mode:
+        dev_loss, performance_dict = evaluate(dev_loader, model.eval(), criterion)
+
     best_step, best_dev_loss = 0, np.inf  # to do early stopping if the loss is not getting better
     for epoch in range(args["max_epoch"]):
         for e, (s, l, _) in enumerate(train_loader):
@@ -104,7 +102,7 @@ if __name__ == "__main__":
             for i, sequence in enumerate(s):
                 sequence = sequence.to(device)
                 if args["augment"]:
-                    sequence = apply_augmentation(sequence.unsqueeze(1), sample_rate=16000).squeeze(1)
+                    sequence = apply_augmentation(sequence.unsqueeze(1), sample_rate=44100).squeeze(1)
                 label = l[i].to(device)
                 act = model.forward(sequence)
                 loss = criterion(act, label)

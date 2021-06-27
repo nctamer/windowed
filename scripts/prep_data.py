@@ -1,4 +1,3 @@
-
 import csv
 import numpy as np
 import librosa
@@ -7,28 +6,18 @@ from torch.utils import data
 from mir_eval import melody
 from scipy.stats import norm
 from six.moves import cPickle as pickle
+import torch
 
 
 AUDIO_SR = 44100
-WINDOW_LEN = 1024
+WINDOW_LEN = 2048
 
 LABEL = {
-    "n_bins": 360,
-    "min_f0_hz": 31.70,
-    "granularity_c": 20,
-    "smooth_std_c": 25
+    "n_bins": 720,
+    "min_f0_hz": 32.7032,
+    "granularity_c": 10,
+    "smooth_std_c": 12,
 }
-
-
-def save_dict(di_, filename_):
-    with open(filename_, 'wb') as f:
-        pickle.dump(di_, f)
-
-
-def load_dict(filename_):
-    with open(filename_, 'rb') as f:
-        ret_di = pickle.load(f)
-    return ret_di
 
 
 class Label:
@@ -40,6 +29,7 @@ class Label:
         self.smooth_std_c = smooth_std_c
         self.pdf_normalizer = norm.pdf(0)
         self.centers_c = np.linspace(0, (self.n_bins - 1) * self.granularity_c, self.n_bins) + self.min_f0_c
+        self.activation_sum_range = int(np.floor(100/self.smooth_std_c))
 
     def c2label(self, pitch_c):
         """
@@ -57,6 +47,42 @@ class Label:
     def hz2label(self, pitch_hz):
         pitch_c = melody.hz2cents(np.array([pitch_hz]))[0]
         return self.c2label(pitch_c)
+
+    def salience2c(self, salience):
+        """
+        find the weighted average cents near the argmax bin
+        """
+        if isinstance(salience, np.ndarray):
+            salience = torch.from_numpy(salience)
+        if salience.ndim == 1:
+            center = int(torch.argmax(salience))
+            start = max(0, center - self.activation_sum_range)
+            end = min(len(salience), center + 1 + self.activation_sum_range)
+            salience = salience[start:end]
+            product_sum = torch.sum(
+                salience * torch.tensor(self.centers_c[start:end]).to(salience.device))
+            weight_sum = torch.sum(salience)
+            return product_sum / weight_sum
+        if salience.ndim == 2:
+            return torch.tensor([self.salience2c(salience[i, :]) for i in range(salience.shape[0])])
+        raise Exception("label should be either 1d or 2d Tensor")
+
+    def salience2hz(self, salience):
+        pitch_c = self.salience2c(salience)
+        pitch_hz = 10 * 2 ** (pitch_c / 1200)
+        pitch_hz[torch.isnan(pitch_hz)] = 0
+        return pitch_hz
+
+
+def save_dict(di_, filename_):
+    with open(filename_, 'wb') as f:
+        pickle.dump(di_, f)
+
+
+def load_dict(filename_):
+    with open(filename_, 'rb') as f:
+        ret_di = pickle.load(f)
+    return ret_di
 
 
 class PrepareDataset(data.Dataset):
@@ -111,6 +137,13 @@ if __name__ == '__main__':
     - window length: 1024
     - #segments per file: 256"""
 
+    """ Content of prep2048 folder:
+    - SR: 44100
+    - window length: 2048
+    - #segments per file: 256
+    - LABEL "n_bins": 720, "min_f0_hz": 32.7032, "granularity_c": 10, "smooth_std_c": 12
+    """
+
     base_path = "/homedtic/ntamer/instrument_pitch_tracker/data"
     #data_path = "/home/nazif/PycharmProjects/data/Bach10-mf0-synth"
 
@@ -119,6 +152,6 @@ if __name__ == '__main__':
 
         dataset = PrepareDataset(audio_folder=os.path.join(data_path, "audio_stems"),
                                  annotation_folder=os.path.join(data_path, "annotation_stems"),
-                                 save_folder=os.path.join(data_path, "prep44100"), save_size=256)
+                                 save_folder=os.path.join(data_path, "prep2048"), save_size=256)
         for n in dataset:
             print(n)

@@ -1,35 +1,20 @@
 import torch
 import torch.nn as nn
-#import torchaudio
 import sys
-from modules.utils import *
+import os
 import numpy as np
-
-
-def get_frame(audio, step_size, center):
-    if center:
-        audio = nn.functional.pad(audio, pad=(512, 512))
-    # make 1024-sample frames of the audio with hop length of 10 milliseconds
-    hop_length = int(16000 * step_size / 1000)
-    n_frames = 1 + int((len(audio) - 1024) / hop_length)
-    assert audio.dtype == torch.float32
-    itemsize = 1  # float32 byte size
-    frames = torch.as_strided(audio, size=(1024, n_frames), stride=(itemsize, hop_length * itemsize))
-    frames = frames.transpose(0, 1).clone()
-
-    frames -= (torch.mean(frames, axis=1).unsqueeze(-1))
-    frames /= (torch.std(frames, axis=1).unsqueeze(-1))
-    return frames
+import torchaudio
+from dataset import Label, LABEL
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, f, w, s, in_channels):
+    def __init__(self, f, w, s, d, in_channels):
         super().__init__()
-        p1 = (w - 1) // 2
-        p2 = (w - 1) - p1
+        p1 = d[0]*(w - 1) // 2
+        p2 = d[0]*(w - 1) - p1
         self.pad = nn.ZeroPad2d((0, 0, p1, p2))
 
-        self.conv2d = nn.Conv2d(in_channels=in_channels, out_channels=f, kernel_size=(w, 1), stride=s)
+        self.conv2d = nn.Conv2d(in_channels=in_channels, out_channels=f, kernel_size=(w, 1), stride=s, dilation=d)
         self.relu = nn.ReLU()
         self.bn = nn.BatchNorm2d(f)
         self.pool = nn.MaxPool2d(kernel_size=(2, 1))
@@ -46,7 +31,7 @@ class ConvBlock(nn.Module):
 
 
 class CREPE(nn.Module):
-    def __init__(self, model_capacity="full", pretrained=True):
+    def __init__(self, model_capacity="full"):
         super().__init__()
 
         capacity_multiplier = {
@@ -57,22 +42,18 @@ class CREPE(nn.Module):
         filters = [n * capacity_multiplier for n in [32, 4, 4, 4, 8, 16]]
         filters = [1] + filters
         widths = [512, 64, 64, 64, 64, 64]
-        strides = [(4, 1), (1, 1), (1, 1), (1, 1), (1, 1), (1, 1)]
+        strides = [(4, 1), (2, 1), (1, 1), (1, 1), (1, 1), (1, 1)]
+        dilation = [(1, 1), (3, 1), (5, 1), (7, 1), (7, 1), (7, 1)]
 
         for i in range(len(self.layers)):
-            f, w, s, in_channel = filters[i + 1], widths[i], strides[i], filters[i]
-            self.add_module("conv%d" % i, ConvBlock(f, w, s, in_channel))
+            f, w, d, s, in_channel = filters[i + 1], widths[i], dilation[i], strides[i], filters[i]
+            self.add_module("conv%d" % i, ConvBlock(f, w, s, d, in_channel))
 
-        self.linear = nn.Linear(64 * capacity_multiplier, 360)
-        if pretrained:
-            self.load_weight(model_capacity)
-        self.eval()
+        self.linear = nn.Linear(64 * capacity_multiplier, 720)
+        # TODO: experiment with stride ib the second filter and the last linear into 128*capacityMul
 
-    def load_weight(self, model_capacity):
-        download_weights(model_capacity)
-        package_dir = os.path.dirname(os.path.realpath(__file__))
-        filename = "crepe-{}.pth".format(model_capacity)
-        self.load_state_dict(torch.load(os.path.join(package_dir, filename)))
+    def load_weight(self, model_path):
+        self.load_state_dict(torch.load(model_path, map_location=self.linear.weight.device))
 
     def forward(self, x):
         # x : shape (batch, sample)
@@ -86,14 +67,27 @@ class CREPE(nn.Module):
         x = torch.sigmoid(x)
         return x
 
-    '''
-    def get_activation(self, audio, sr, center=True, step_size=10, batch_size=128):
+    @staticmethod
+    def get_frame(audio, hop_length=128):
+        audio = nn.functional.pad(audio, pad=(1024, 1024))
+        # make 1024-sample frames of the audio with hop length of 10 milliseconds
+        n_frames = 1 + int((len(audio) - 2048) / hop_length)
+        assert audio.dtype == torch.float32
+        itemsize = 1  # float32 byte size
+        frames = torch.as_strided(audio, size=(2048, n_frames), stride=(itemsize, hop_length * itemsize))
+        frames = frames.transpose(0, 1).clone()
+
+        frames -= (torch.mean(frames, axis=1).unsqueeze(-1))
+        frames /= (torch.std(frames, axis=1).unsqueeze(-1))
+        return frames
+
+    def get_activation(self, audio, sr, hop_length=128, batch_size=128):
         """
         audio : (N,) or (C, N)
         """
 
-        if sr != 16000:
-            rs = torchaudio.transforms.Resample(sr, 16000)
+        if sr != 44100:
+            rs = torchaudio.transforms.Resample(sr, 44100)
             audio = rs(audio)
 
         if len(audio.shape) == 2:
@@ -102,7 +96,7 @@ class CREPE(nn.Module):
             else:
                 audio = audio.mean(dim=0)  # make mono
 
-        frames = get_frame(audio, step_size, center)
+        frames = self.get_frame(audio, hop_length)
         activation_stack = []
         device = self.linear.weight.device
 
@@ -113,18 +107,16 @@ class CREPE(nn.Module):
             activation_stack.append(act.cpu())
         activation = torch.cat(activation_stack, dim=0)
         return activation
-    '''
 
-    def predict(self, audio, sr, viterbi=False, center=True, step_size=10, batch_size=128):
-        activation = self.get_activation(audio, sr, batch_size=batch_size, step_size=step_size)
-        frequency = to_freq(activation, viterbi=viterbi)
+    def predict(self, audio, sr, label=Label(**LABEL), viterbi=False, hop_length=128, batch_size=128):
+        activation = self.get_activation(audio, sr, batch_size=batch_size, hop_length=hop_length)
+        frequency = label.salience2hz(activation, viterbi=viterbi)
         confidence = activation.max(dim=1)[0]
-        time = torch.arange(confidence.shape[0]) * step_size / 1000.0
+        time = torch.arange(confidence.shape[0]) * hop_length / 44100
         return time, frequency, confidence, activation
 
-    '''
-    def process_file(self, file, output=None, viterbi=False,
-                     center=True, step_size=10, save_plot=False, batch_size=128):
+    def process_file(self, file, output=None, viterbi=False, hop_length=128, save_plot=False, batch_size=128,
+                     label=Label(**LABEL)):
         try:
             audio, sr = torchaudio.load(file)
         except ValueError:
@@ -134,17 +126,16 @@ class CREPE(nn.Module):
             time, frequency, confidence, activation = self.predict(
                 audio, sr,
                 viterbi=viterbi,
-                center=center,
-                step_size=step_size,
+                hop_length=hop_length,
                 batch_size=batch_size,
+                label=label
             )
 
         time, frequency, confidence, activation = time.numpy(), frequency.numpy(), confidence.numpy(), activation.numpy()
-
-        f0_file = os.path.join(output, os.path.basename(os.path.splitext(file)[0])) + ".f0.csv"
-        f0_data = np.vstack([time, frequency, confidence]).transpose()
-        np.savetxt(f0_file, f0_data, fmt=['%.3f', '%.3f', '%.6f'], delimiter=',',
-                   header='time,frequency,confidence', comments='')
+        data = np.vstack([time, frequency, confidence]).T
+        if output:
+            np.save(output + ".npy", data)
+            np.savetxt(output + ".txt", data[:, :2], fmt=['%.6f', '%.6f'])
 
         # save the salience visualization in a PNG file
         if save_plot:
@@ -158,31 +149,34 @@ class CREPE(nn.Module):
             image = inferno(salience.transpose())
 
             imwrite(plot_file, (255 * image).astype(np.uint8))
-    '''
+
+
 
 if __name__ == "__main__":
 
     def get_audio_stem(name):
         return os.path.join(STEM_FOLDER, name + ".wav")
 
-
-    def get_annotation(name):
-        return os.path.join(ANNO_FOLDER, name + ".csv")
+    DATA_FOLDER = "/home/nazif/PycharmProjects/resynthesis/data/"
+    MODEL = "/home/nazif/PycharmProjects/models/dilated2048_Jun23_16/dilated2048"
 
 
     # cr = CREPE().cuda() #no cuda for debug
     cr = CREPE().cpu()
-
-    DATA_FOLDER = "/home/nazif/PycharmProjects/vienna/pitch_trackers/"
-
-    STEM_FOLDER = DATA_FOLDER + "Bach10-mf0-synth/audio_stems/"
-    ANNO_FOLDER = DATA_FOLDER + "Bach10-mf0-synth/annotation_stems/"
-    TARGET_FOLDER = DATA_FOLDER + "Bach10-mf0-synth/prediction_stems/"
+    cr.load_weight(MODEL)
+    STEM_FOLDER = os.path.join(DATA_FOLDER, "original")
+    #ANNO_FOLDER = DATA_FOLDER + "Bach10-mf0-synth/annotation_stems/"
+    TARGET_FOLDER = os.path.join(DATA_FOLDER, "pitch_tracks")
 
     names = os.listdir(STEM_FOLDER)
     names = sorted([_[:-4] for _ in names if _.endswith(".wav")])
 
     from tqdm import tqdm
 
-    for piece in tqdm(names):
-        cr.process_file(get_audio_stem(piece), TARGET_FOLDER, step_size=4, viterbi=False)
+    for viterbi in (True, False):
+        print("viterbi:", viterbi)
+        for piece in tqdm(names):
+            target_file = os.path.join(TARGET_FOLDER, piece) + ".dilated"
+            if viterbi:
+                target_file = target_file + "_viterbi"
+            cr.process_file(get_audio_stem(piece), target_file, hop_length=128, viterbi=viterbi)

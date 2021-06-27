@@ -110,6 +110,7 @@ def to_viterbi_cents(salience):
                      range(len(observations))])
 
 
+
 def to_freq(activation, viterbi=False):
     if viterbi:
         cents = to_viterbi_cents(activation.detach().numpy())
@@ -120,6 +121,7 @@ def to_freq(activation, viterbi=False):
     frequency = 10 * 2 ** (cents / 1200)
     frequency[torch.isnan(frequency)] = 0
     return frequency
+
 
 
 def print_model_info(model_id, args, writer):
@@ -139,6 +141,7 @@ def print_model_info(model_id, args, writer):
 
 
 def evaluate(dev_loader, model, criterion):
+    salience2hz = dev_loader.dataset.label.salience2hz
     device = model.linear.weight.device
     dev_loss = 0
     eval_data = {"ref": [], "est": []}
@@ -151,7 +154,7 @@ def evaluate(dev_loader, model, criterion):
                 loss = criterion(act, label)
                 dev_loss += loss.item()
 
-                est_hz = to_freq(act, viterbi=False).view(-1).numpy()
+                est_hz = salience2hz(act).view(-1).numpy()
                 ref_hz = f[i].view(-1).numpy()
                 # confidence = act.max(dim=1)[0][mask].numpy()
                 eval_data["ref"].append(ref_hz)
